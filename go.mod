@@ -1,4 +1,4 @@
-module p2p_demo
+module apron.network/gateway-p2p
 
 go 1.16
 

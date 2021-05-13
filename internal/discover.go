@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"context"
@@ -24,7 +24,7 @@ func Discover(ctx context.Context, n *Node, dht *dht.IpfsDHT, rendezvous string)
 		case <-ticker.C:
 			peers, err := discovery.FindPeers(ctx, routingDiscovery, rendezvous)
 			fmt.Printf("Network peer count: %d\n", len(peers))
-			checkError(err)
+			CheckError(err)
 
 			//err = n.Publish(ctx, h.ID().Pretty())
 			//checkError(err)

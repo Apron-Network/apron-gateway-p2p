@@ -1,4 +1,4 @@
-package main
+package internal
 
 var (
 	BroadcastLocalServiceToRemoteChannel = "/p2p/rpc/broadcast_local_services"

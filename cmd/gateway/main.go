@@ -1,6 +1,7 @@
 package main
 
 import (
+	"apron.network/gateway-p2p/internal"
 	"context"
 	"crypto/rand"
 	"flag"
@@ -17,11 +18,7 @@ import (
 	"sync"
 )
 
-func checkError(e error) {
-	if e != nil {
-		panic(e)
-	}
-}
+
 
 var wg sync.WaitGroup
 
@@ -29,7 +26,7 @@ func NewHost(ctx context.Context, seed int64, port int) (host.Host, error) {
 	var r io.Reader
 	r = rand.Reader
 	priv, _, err := crypto.GenerateKeyPairWithReader(crypto.RSA, 2048, r)
-	checkError(err)
+	internal.CheckError(err)
 
 	addr, _ := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 	return libp2p.New(ctx, libp2p.ListenAddrs(addr), libp2p.Identity(priv))
@@ -43,7 +40,7 @@ func NewKDHT(ctx context.Context, host host.Host, bootstrapPeers []multiaddr.Mul
 	}
 
 	kdht, err := dht.New(ctx, host, options...)
-	checkError(err)
+	internal.CheckError(err)
 
 	if err = kdht.Bootstrap(ctx); err != nil {
 		return nil, err
@@ -70,15 +67,15 @@ func NewKDHT(ctx context.Context, host host.Host, bootstrapPeers []multiaddr.Mul
 func main() {
 	ctx := context.Background()
 
-	peerList := addrList{}
+	peerList := internal.AddrList{}
 
 	flag.Var(&peerList, "peer", "Bootstrap peers")
 	serviceName := flag.String("serviceName", "services", "Services name")
 	port := flag.Int("port", 2145, "Service port")
 	flag.Parse()
 
-	node, err := NewNode(ctx, *port)
-	checkError(err)
+	node, err := internal.NewNode(ctx, *port)
+	internal.CheckError(err)
 
 	log.Printf("Host ID: %s", (*node.Host).ID().Pretty())
 	log.Printf("Connect to me on:")
@@ -87,7 +84,7 @@ func main() {
 	}
 
 	kdht, err := NewKDHT(ctx, *node.Host, peerList)
-	checkError(err)
+	internal.CheckError(err)
 
 	selfServices := []string{*serviceName}
 
@@ -99,13 +96,13 @@ func main() {
 	//	protocolID: protocol.ID("UpdateServiceRpcProtocol"),
 	//}
 	//err = service.SetupRPC()
-	//checkError(err)
+	//internal.CheckError(err)
 	//go service.BroadcastLocalService(&selfServices)
 
 	// Method 2: Setup pubsub
 	node.SetupListener(ctx)
 
-	go Discover(ctx, node, kdht, "asdfasdf")
+	go internal.Discover(ctx, node, kdht, "asdfasdf")
 
 	select {}
 }

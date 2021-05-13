@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"context"
@@ -40,13 +40,13 @@ func NewNode(ctx context.Context, port int) (*Node, error) {
 func (n *Node) SetupListener(ctx context.Context) {
 	var err error
 	n.ps, err = pubsub.NewGossipSub(ctx, *n.Host)
-	checkError(err)
+	CheckError(err)
 
 	n.topic, err = n.ps.Join(BroadcastLocalServiceToRemoteChannel)
-	checkError(err)
+	CheckError(err)
 
 	n.sub, err = n.topic.Subscribe()
-	checkError(err)
+	CheckError(err)
 
 	n.selfID = (*n.Host).ID()
 
@@ -56,7 +56,7 @@ func (n *Node) SetupListener(ctx context.Context) {
 func (n *Node) StartListening(ctx context.Context) {
 	for {
 		msg, err := n.sub.Next(ctx)
-		checkError(err)
+		CheckError(err)
 
 		if msg.ReceivedFrom == n.selfID {
 			continue
