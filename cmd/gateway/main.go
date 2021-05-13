@@ -90,16 +90,7 @@ func main() {
 
 	fmt.Printf("Self services: %+v\n", selfServices)
 
-	//// Method 1: Setup RPC
-	//service := &UpdateServiceRpcCall{
-	//	host:       h,
-	//	protocolID: protocol.ID("UpdateServiceRpcProtocol"),
-	//}
-	//err = service.SetupRPC()
-	//internal.CheckError(err)
-	//go service.BroadcastLocalService(&selfServices)
-
-	// Method 2: Setup pubsub
+	// Setup pubsub
 	node.SetupListener(ctx)
 
 	go internal.Discover(ctx, node, kdht, "asdfasdf")
