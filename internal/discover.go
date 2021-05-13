@@ -26,9 +26,6 @@ func Discover(ctx context.Context, n *Node, dht *dht.IpfsDHT, rendezvous string)
 			fmt.Printf("Network peer count: %d\n", len(peers))
 			CheckError(err)
 
-			//err = n.Publish(ctx, h.ID().Pretty())
-			//checkError(err)
-
 			for _, p := range peers {
 				// Ignore self node
 				if p.ID == h.ID() {

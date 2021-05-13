@@ -42,7 +42,7 @@ func (n *Node) SetupListener(ctx context.Context) {
 	n.ps, err = pubsub.NewGossipSub(ctx, *n.Host)
 	CheckError(err)
 
-	n.topic, err = n.ps.Join(BroadcastLocalServiceToRemoteChannel)
+	n.topic, err = n.ps.Join(BroadcastLocalServiceTopic)
 	CheckError(err)
 
 	n.sub, err = n.topic.Subscribe()
