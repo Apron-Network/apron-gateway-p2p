@@ -1,3 +1,3 @@
 package mgmt_api
 
-func StartMgmtApiServer(addr string)
+func StartMgmtApiServer(addr string) {}
