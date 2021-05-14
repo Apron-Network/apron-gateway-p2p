@@ -1,6 +1,7 @@
-package internal
+package trans_network
 
 import (
+	"apron.network/gateway-p2p/internal"
 	"context"
 	"fmt"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -24,7 +25,7 @@ func Discover(ctx context.Context, n *Node, dht *dht.IpfsDHT, rendezvous string)
 		case <-ticker.C:
 			peers, err := discovery.FindPeers(ctx, routingDiscovery, rendezvous)
 			fmt.Printf("Network peer count: %d\n", len(peers))
-			CheckError(err)
+			internal.CheckError(err)
 
 			for _, p := range peers {
 				// Ignore self node

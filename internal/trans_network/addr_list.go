@@ -1,4 +1,4 @@
-package internal
+package trans_network
 
 import (
 	"github.com/multiformats/go-multiaddr"

@@ -1,6 +1,7 @@
-package internal
+package trans_network
 
 import (
+	"apron.network/gateway-p2p/internal"
 	"context"
 	"crypto/rand"
 	"fmt"
@@ -21,14 +22,14 @@ type Node struct {
 	selfID peer.ID
 }
 
-func NewNode(ctx context.Context, port int) (*Node, error) {
+func NewNode(ctx context.Context, config &internal.GatewayConfig) (*Node, error) {
 	r := rand.Reader
 	priv, _, err := crypto.GenerateKeyPairWithReader(crypto.RSA, 2048, r)
 	if err != nil {
 		return nil, err
 	}
 
-	addr, _ := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
+	addr, _ := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", config))
 	h, err := libp2p.New(ctx, libp2p.ListenAddrs(addr), libp2p.Identity(priv))
 	if err != nil {
 		return nil, err
@@ -40,13 +41,13 @@ func NewNode(ctx context.Context, port int) (*Node, error) {
 func (n *Node) SetupListener(ctx context.Context) {
 	var err error
 	n.ps, err = pubsub.NewGossipSub(ctx, *n.Host)
-	CheckError(err)
+	internal.CheckError(err)
 
 	n.topic, err = n.ps.Join(BroadcastLocalServiceTopic)
-	CheckError(err)
+	internal.CheckError(err)
 
 	n.sub, err = n.topic.Subscribe()
-	CheckError(err)
+	internal.CheckError(err)
 
 	n.selfID = (*n.Host).ID()
 
@@ -56,7 +57,7 @@ func (n *Node) SetupListener(ctx context.Context) {
 func (n *Node) StartListening(ctx context.Context) {
 	for {
 		msg, err := n.sub.Next(ctx)
-		CheckError(err)
+		internal.CheckError(err)
 
 		if msg.ReceivedFrom == n.selfID {
 			continue
