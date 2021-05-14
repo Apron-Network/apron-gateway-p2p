@@ -22,14 +22,14 @@ type Node struct {
 	selfID peer.ID
 }
 
-func NewNode(ctx context.Context, config &internal.GatewayConfig) (*Node, error) {
+func NewNode(ctx context.Context, config *TransNetworkConfig) (*Node, error) {
 	r := rand.Reader
 	priv, _, err := crypto.GenerateKeyPairWithReader(crypto.RSA, 2048, r)
 	if err != nil {
 		return nil, err
 	}
 
-	addr, _ := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", config))
+	addr, _ := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", config.ConnectPort))
 	h, err := libp2p.New(ctx, libp2p.ListenAddrs(addr), libp2p.Identity(priv))
 	if err != nil {
 		return nil, err

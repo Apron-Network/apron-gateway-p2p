@@ -13,12 +13,9 @@ func main() {
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
-	// TODO: Parse CLI params to config object
-	config := &internal.GatewayConfig{}
-	peerList := trans_network.AddrList{}
-
-	flag.Var(&peerList, "peers", "Bootstrap Peers")
-	port := flag.Int("port", 2145, "Service port")
+	config := &trans_network.TransNetworkConfig{}
+	flag.Var(&config.BootstrapPeers, "peers", "Bootstrap Peers")
+	flag.IntVar(&config.ConnectPort, "port", 2145, "Service port")
 	flag.Parse()
 
 	node, err := trans_network.NewNode(ctx, config)
@@ -30,7 +27,7 @@ func main() {
 		log.Printf("  %s/p2p/%s", addr, (*node.Host).ID().Pretty())
 	}
 
-	kdht, err := trans_network.NewKDHT(ctx, *node.Host, peerList, &wg)
+	kdht, err := trans_network.NewKDHT(ctx, *node.Host, config.BootstrapPeers, &wg)
 	internal.CheckError(err)
 
 	// Setup pubsub
