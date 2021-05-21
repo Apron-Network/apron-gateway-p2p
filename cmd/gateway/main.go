@@ -30,8 +30,8 @@ func main() {
 	kdht, err := trans_network.NewKDHT(ctx, *node.Host, config.BootstrapPeers, &wg)
 	internal.CheckError(err)
 
-	// Setup pubsub
-	node.SetupListener(ctx)
+	// Setup listener for service broadcast
+	node.SetupServiceBroadcastListener(ctx)
 
 	// Start discover goroutines
 	go trans_network.Discover(ctx, node, kdht, "asdfasdf")

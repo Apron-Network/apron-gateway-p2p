@@ -2,6 +2,7 @@ package trans_network
 
 import (
 	"apron.network/gateway-p2p/internal"
+	"apron.network/gateway-p2p/internal/models"
 	"context"
 	"crypto/rand"
 	"fmt"
@@ -16,10 +17,10 @@ import (
 type Node struct {
 	Host *host.Host
 
-	ps     *pubsub.PubSub
-	topic  *pubsub.Topic
-	sub    *pubsub.Subscription
-	selfID peer.ID
+	ps                    *pubsub.PubSub
+	broadcastServiceTopic *pubsub.Topic
+	serviceBroadcastSub   *pubsub.Subscription
+	selfID                peer.ID
 }
 
 func NewNode(ctx context.Context, config *TransNetworkConfig) (*Node, error) {
@@ -38,25 +39,25 @@ func NewNode(ctx context.Context, config *TransNetworkConfig) (*Node, error) {
 	return &Node{Host: &h}, nil
 }
 
-func (n *Node) SetupListener(ctx context.Context) {
+func (n *Node) SetupServiceBroadcastListener(ctx context.Context) {
 	var err error
 	n.ps, err = pubsub.NewGossipSub(ctx, *n.Host)
 	internal.CheckError(err)
 
-	n.topic, err = n.ps.Join(BroadcastLocalServiceTopic)
+	n.broadcastServiceTopic, err = n.ps.Join(BroadcastServiceChannel)
 	internal.CheckError(err)
 
-	n.sub, err = n.topic.Subscribe()
+	n.serviceBroadcastSub, err = n.broadcastServiceTopic.Subscribe()
 	internal.CheckError(err)
 
 	n.selfID = (*n.Host).ID()
 
-	go n.StartListening(ctx)
+	go n.StartListeningOnServiceBroadcast(ctx)
 }
 
-func (n *Node) StartListening(ctx context.Context) {
+func (n *Node) StartListeningOnServiceBroadcast(ctx context.Context) {
 	for {
-		msg, err := n.sub.Next(ctx)
+		msg, err := n.serviceBroadcastSub.Next(ctx)
 		internal.CheckError(err)
 
 		if msg.ReceivedFrom == n.selfID {
@@ -67,6 +68,9 @@ func (n *Node) StartListening(ctx context.Context) {
 	}
 }
 
-func (n *Node) Publish(ctx context.Context, msg string) error {
-	return n.topic.Publish(ctx, []byte(msg))
+func (n *Node) BroadcastService(ctx context.Context, msg string) error {
+	return n.broadcastServiceTopic.Publish(ctx, []byte(msg))
+}
+
+func (n *Node) AddService(service models.ApronService) {
 }
