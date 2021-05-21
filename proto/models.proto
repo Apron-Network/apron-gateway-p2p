@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+option go_package = "apron.network/gateway/models";
+
+message ApronApiKey {
+  string key = 1;
+  string service_id = 2;
+  int64 issued_at = 3;
+  int64 expired_at = 4;
+  string account_id = 5;
+}
+
+message ApronService {
+  string id = 1;
+  string name = 2;
+  string base_url = 3;
+  string schema = 4;
+  string desc = 5;
+  string logo = 6;
+  uint64 create_time = 7;
+  string service_provider_name = 8;
+  string service_provider_account = 9;
+  string service_usage = 10;
+  string service_price_plan = 11;
+  string service_declaimer = 12;
+}
+
+message ApronUser {
+  string email = 1;
+}
+
+message AccessLog {
+  int64 ts = 1;
+  string service_name = 2;
+  string user_key = 3;
+  string request_ip = 4;
+  string request_path = 5;
+}
