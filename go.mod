@@ -9,5 +9,6 @@ require (
 	github.com/libp2p/go-libp2p-kad-dht v0.11.1
 	github.com/libp2p/go-libp2p-pubsub v0.4.1
 	github.com/multiformats/go-multiaddr v0.3.1
+	google.golang.org/protobuf v1.26.0
 	gotest.tools v2.2.0+incompatible
 )
