@@ -36,3 +36,16 @@ message AccessLog {
   string request_ip = 4;
   string request_path = 5;
 }
+
+message ApronServiceRequest {
+  enum HttpMethod {
+    UNKNOWN = 0;
+    GET = 1;
+    POST = 2;
+    PUT = 3;
+    DELETE = 4;
+  }
+  HttpMethod http_method = 1;
+  string service_url = 2;
+  string schema = 3;
+}

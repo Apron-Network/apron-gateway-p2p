@@ -20,6 +20,61 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type ApronServiceRequest_HttpMethod int32
+
+const (
+	ApronServiceRequest_UNKNOWN ApronServiceRequest_HttpMethod = 0
+	ApronServiceRequest_GET     ApronServiceRequest_HttpMethod = 1
+	ApronServiceRequest_POST    ApronServiceRequest_HttpMethod = 2
+	ApronServiceRequest_PUT     ApronServiceRequest_HttpMethod = 3
+	ApronServiceRequest_DELETE  ApronServiceRequest_HttpMethod = 4
+)
+
+// Enum value maps for ApronServiceRequest_HttpMethod.
+var (
+	ApronServiceRequest_HttpMethod_name = map[int32]string{
+		0: "UNKNOWN",
+		1: "GET",
+		2: "POST",
+		3: "PUT",
+		4: "DELETE",
+	}
+	ApronServiceRequest_HttpMethod_value = map[string]int32{
+		"UNKNOWN": 0,
+		"GET":     1,
+		"POST":    2,
+		"PUT":     3,
+		"DELETE":  4,
+	}
+)
+
+func (x ApronServiceRequest_HttpMethod) Enum() *ApronServiceRequest_HttpMethod {
+	p := new(ApronServiceRequest_HttpMethod)
+	*p = x
+	return p
+}
+
+func (x ApronServiceRequest_HttpMethod) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ApronServiceRequest_HttpMethod) Descriptor() protoreflect.EnumDescriptor {
+	return file_models_proto_enumTypes[0].Descriptor()
+}
+
+func (ApronServiceRequest_HttpMethod) Type() protoreflect.EnumType {
+	return &file_models_proto_enumTypes[0]
+}
+
+func (x ApronServiceRequest_HttpMethod) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ApronServiceRequest_HttpMethod.Descriptor instead.
+func (ApronServiceRequest_HttpMethod) EnumDescriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{4, 0}
+}
+
 type ApronApiKey struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -360,6 +415,69 @@ func (x *AccessLog) GetRequestPath() string {
 	return ""
 }
 
+type ApronServiceRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	HttpMethod ApronServiceRequest_HttpMethod `protobuf:"varint,1,opt,name=http_method,json=httpMethod,proto3,enum=ApronServiceRequest_HttpMethod" json:"http_method,omitempty"`
+	ServiceUrl string                         `protobuf:"bytes,2,opt,name=service_url,json=serviceUrl,proto3" json:"service_url,omitempty"`
+	Schema     string                         `protobuf:"bytes,3,opt,name=schema,proto3" json:"schema,omitempty"`
+}
+
+func (x *ApronServiceRequest) Reset() {
+	*x = ApronServiceRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_models_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ApronServiceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApronServiceRequest) ProtoMessage() {}
+
+func (x *ApronServiceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_models_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApronServiceRequest.ProtoReflect.Descriptor instead.
+func (*ApronServiceRequest) Descriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ApronServiceRequest) GetHttpMethod() ApronServiceRequest_HttpMethod {
+	if x != nil {
+		return x.HttpMethod
+	}
+	return ApronServiceRequest_UNKNOWN
+}
+
+func (x *ApronServiceRequest) GetServiceUrl() string {
+	if x != nil {
+		return x.ServiceUrl
+	}
+	return ""
+}
+
+func (x *ApronServiceRequest) GetSchema() string {
+	if x != nil {
+		return x.Schema
+	}
+	return ""
+}
+
 var File_models_proto protoreflect.FileDescriptor
 
 var file_models_proto_rawDesc = []byte{
@@ -411,10 +529,23 @@ var file_models_proto_rawDesc = []byte{
 	0x65, 0x73, 0x74, 0x5f, 0x69, 0x70, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x72, 0x65,
 	0x71, 0x75, 0x65, 0x73, 0x74, 0x49, 0x70, 0x12, 0x21, 0x0a, 0x0c, 0x72, 0x65, 0x71, 0x75, 0x65,
 	0x73, 0x74, 0x5f, 0x70, 0x61, 0x74, 0x68, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x72,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x50, 0x61, 0x74, 0x68, 0x42, 0x1e, 0x5a, 0x1c, 0x61, 0x70,
-	0x72, 0x6f, 0x6e, 0x2e, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x2f, 0x67, 0x61, 0x74, 0x65,
-	0x77, 0x61, 0x79, 0x2f, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x73, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x33,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x50, 0x61, 0x74, 0x68, 0x22, 0xd3, 0x01, 0x0a, 0x13, 0x41,
+	0x70, 0x72, 0x6f, 0x6e, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x12, 0x40, 0x0a, 0x0b, 0x68, 0x74, 0x74, 0x70, 0x5f, 0x6d, 0x65, 0x74, 0x68, 0x6f,
+	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x1f, 0x2e, 0x41, 0x70, 0x72, 0x6f, 0x6e, 0x53,
+	0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x2e, 0x48, 0x74,
+	0x74, 0x70, 0x4d, 0x65, 0x74, 0x68, 0x6f, 0x64, 0x52, 0x0a, 0x68, 0x74, 0x74, 0x70, 0x4d, 0x65,
+	0x74, 0x68, 0x6f, 0x64, 0x12, 0x1f, 0x0a, 0x0b, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x5f,
+	0x75, 0x72, 0x6c, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x73, 0x65, 0x72, 0x76, 0x69,
+	0x63, 0x65, 0x55, 0x72, 0x6c, 0x12, 0x16, 0x0a, 0x06, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x18,
+	0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x22, 0x41, 0x0a,
+	0x0a, 0x48, 0x74, 0x74, 0x70, 0x4d, 0x65, 0x74, 0x68, 0x6f, 0x64, 0x12, 0x0b, 0x0a, 0x07, 0x55,
+	0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10, 0x00, 0x12, 0x07, 0x0a, 0x03, 0x47, 0x45, 0x54, 0x10,
+	0x01, 0x12, 0x08, 0x0a, 0x04, 0x50, 0x4f, 0x53, 0x54, 0x10, 0x02, 0x12, 0x07, 0x0a, 0x03, 0x50,
+	0x55, 0x54, 0x10, 0x03, 0x12, 0x0a, 0x0a, 0x06, 0x44, 0x45, 0x4c, 0x45, 0x54, 0x45, 0x10, 0x04,
+	0x42, 0x1e, 0x5a, 0x1c, 0x61, 0x70, 0x72, 0x6f, 0x6e, 0x2e, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72,
+	0x6b, 0x2f, 0x67, 0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x2f, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x73,
+	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -429,19 +560,23 @@ func file_models_proto_rawDescGZIP() []byte {
 	return file_models_proto_rawDescData
 }
 
-var file_models_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_models_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_models_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_models_proto_goTypes = []interface{}{
-	(*ApronApiKey)(nil),  // 0: ApronApiKey
-	(*ApronService)(nil), // 1: ApronService
-	(*ApronUser)(nil),    // 2: ApronUser
-	(*AccessLog)(nil),    // 3: AccessLog
+	(ApronServiceRequest_HttpMethod)(0), // 0: ApronServiceRequest.HttpMethod
+	(*ApronApiKey)(nil),                 // 1: ApronApiKey
+	(*ApronService)(nil),                // 2: ApronService
+	(*ApronUser)(nil),                   // 3: ApronUser
+	(*AccessLog)(nil),                   // 4: AccessLog
+	(*ApronServiceRequest)(nil),         // 5: ApronServiceRequest
 }
 var file_models_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0, // 0: ApronServiceRequest.http_method:type_name -> ApronServiceRequest.HttpMethod
+	1, // [1:1] is the sub-list for method output_type
+	1, // [1:1] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_models_proto_init() }
@@ -498,19 +633,32 @@ func file_models_proto_init() {
 				return nil
 			}
 		}
+		file_models_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ApronServiceRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_models_proto_rawDesc,
-			NumEnums:      0,
-			NumMessages:   4,
+			NumEnums:      1,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_models_proto_goTypes,
 		DependencyIndexes: file_models_proto_depIdxs,
+		EnumInfos:         file_models_proto_enumTypes,
 		MessageInfos:      file_models_proto_msgTypes,
 	}.Build()
 	File_models_proto = out.File
