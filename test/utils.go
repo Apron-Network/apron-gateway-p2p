@@ -33,11 +33,7 @@ func BuildKdhtNetwork(ctx context.Context, bsNodeCount int, clientCount int) ([]
 		node.SetupServiceBroadcastListener(ctx)
 		bsNodes[i] = node
 
-		bsIdStr := (*node.Host).ID().Pretty()
-		bsNodeAddr := (*node.Host).Addrs()[0]
-		bsNodeAddrStr := fmt.Sprintf("%s/p2p/%s", bsNodeAddr, bsIdStr)
-
-		bsPeers.Set(bsNodeAddrStr)
+		bsPeers.Set(node.NodeAddrStr())
 		port++
 
 		kdht, err := trans_network.NewKDHT(ctx, *node.Host, nil, &wg)
@@ -61,6 +57,7 @@ func BuildKdhtNetwork(ctx context.Context, bsNodeCount int, clientCount int) ([]
 		}
 
 		node.SetupServiceBroadcastListener(ctx)
+		node.SetProxyRequestStreamHandler()
 		clientNodes[i] = node
 		port++
 
