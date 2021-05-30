@@ -25,8 +25,8 @@ func TestRequestForward(t *testing.T) {
 	bsNode := bsNodes[0]
 	clientNode := clientNodes[0]
 	req := &models.ApronServiceRequest{
-		HttpMethod: models.ApronServiceRequest_GET,
-		ServiceUrl: "ifconfig.co",
+		HttpMethod: models.ApronServiceRequest_POST,
+		ServiceUrl: "httpbin.org/anything",
 		Schema:     "https",
 	}
 
