@@ -1,12 +1,14 @@
 package main
 
 import (
-	"apron.network/gateway-p2p/internal"
-	"apron.network/gateway-p2p/internal/trans_network"
 	"context"
 	"flag"
 	"log"
 	"sync"
+
+	"apron.network/gateway-p2p/internal"
+	"apron.network/gateway-p2p/internal/handlers"
+	"apron.network/gateway-p2p/internal/trans_network"
 )
 
 func main() {
@@ -15,7 +17,9 @@ func main() {
 
 	config := &trans_network.TransNetworkConfig{}
 	flag.Var(&config.BootstrapPeers, "peers", "Bootstrap Peers")
-	flag.IntVar(&config.ConnectPort, "port", 2145, "Service port")
+	flag.IntVar(&config.InternalPort, "p2p-port", 2145, "Internal Port Used by p2p network")
+	flag.StringVar(&config.ForwardServiceAddr, "service-addr", ":8080", "Service addr used for service forward")
+	flag.StringVar(&config.MgmtAddr, "mgmt-addr", "localhost:8082", "API base for management")
 	flag.Parse()
 
 	node, err := trans_network.NewNode(ctx, config)
@@ -36,7 +40,11 @@ func main() {
 	// Start discover goroutines
 	go trans_network.Discover(ctx, node, kdht, "asdfasdf")
 
-	// TODO: Start management APIs
+	// Start management APIs
+	go handlers.StartMgmtApiServer(config)
+
+	// Start forward service
+	go handlers.StartForwardService(config)
 
 	select {}
 }

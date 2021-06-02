@@ -5,37 +5,53 @@ import (
 	"apron.network/gateway-p2p/internal/models"
 	"bufio"
 	"context"
-	"encoding/binary"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
-var HttpMethodMapping = map[models.ApronServiceRequest_HttpMethod]string{
+var HttpMethodInternalToStrMapping = map[models.ApronServiceRequest_HttpMethod]string{
 	models.ApronServiceRequest_GET:    "GET",
 	models.ApronServiceRequest_PUT:    "PUT",
 	models.ApronServiceRequest_POST:   "POST",
 	models.ApronServiceRequest_DELETE: "DELETE",
 }
 
+var HttpMethodStringToInternalMapping = map[string]models.ApronServiceRequest_HttpMethod{
+	"GET":    models.ApronServiceRequest_GET,
+	"PUT":    models.ApronServiceRequest_PUT,
+	"POST":   models.ApronServiceRequest_POST,
+	"DELETE": models.ApronServiceRequest_DELETE,
+}
+
 type Node struct {
-	Host *host.Host
+	Host   *host.Host
+	Config *TransNetworkConfig
 
 	ps                    *pubsub.PubSub
 	broadcastServiceTopic *pubsub.Topic
 	serviceBroadcastSub   *pubsub.Subscription
 	selfID                peer.ID
 
-	localServices []models.ApronService
-	remoteService map[string][]models.ApronService
+	// Save service has no name but only key. The key for service should be uniq
+	services map[string]models.ApronService
+
+	// Save service with name, which may contain multiple service with same name, will be used for LB later
+	namedServices map[string][]models.ApronService
+
+	// Mapping of service and peer id, the key for this mapping is service key, and value is peer id, to locate service while receiving forward request
+	servicePeerMapping map[string]peer.ID
 }
 
 func NewNode(ctx context.Context, config *TransNetworkConfig) (*Node, error) {
@@ -52,7 +68,13 @@ func NewNode(ctx context.Context, config *TransNetworkConfig) (*Node, error) {
 		return nil, err
 	}
 
-	return &Node{Host: &h}, nil
+	return &Node{
+		Host:               &h,
+		Config:             config,
+		services:           map[string]models.ApronService{},
+		namedServices:      map[string][]models.ApronService{},
+		servicePeerMapping: map[string]peer.ID{},
+	}, nil
 }
 
 // SetupServiceBroadcastListener set subscriber of service broadcast
@@ -94,8 +116,14 @@ func (n *Node) BroadcastService(ctx context.Context, msg string) error {
 	return n.broadcastServiceTopic.Publish(ctx, []byte(msg))
 }
 
-func (n *Node) RegisterService(service *models.ApronService) {
-	n.localServices = append(n.localServices, *service)
+func (n *Node) RegisterLocalService(service *models.ApronService) {
+	n.services[service.Id] = *service
+	n.servicePeerMapping[service.Id] = n.selfID
+}
+
+func (n *Node) RegisterRemoteService(peerId peer.ID, service *models.ApronService) {
+	n.services[service.Id] = *service
+	n.servicePeerMapping[service.Id] = peerId
 }
 
 func (n *Node) NodeAddrStr() string {
@@ -109,8 +137,8 @@ func (n *Node) NodeAddrStr() string {
 // NewProxyRequest send proxy request to node associated with service.
 // The request is encapsulated in a proto message, and after final message sent, a \n will be sent to note message done,
 // this should be changed to some other policy in future.
-func (n *Node) NewProxyRequest(remoteNode *Node, proxyReq *models.ApronServiceRequest) {
-	s, err := (*n.Host).NewStream(context.Background(), (*remoteNode.Host).ID(), protocol.ID(ProxyRequestStream))
+func (n *Node) NewProxyRequest(peerId peer.ID, proxyReq *models.ApronServiceRequest) {
+	s, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(ProxyRequestStream))
 	if err != nil {
 		panic(err)
 	}
@@ -147,24 +175,54 @@ func (n *Node) SetProxyRequestStreamHandler() {
 
 		fmt.Printf("Read stream: %s\n", proxyReq)
 
-		// Build http request and send
-		serviceUrl := fmt.Sprintf("%s://%s", proxyReq.Schema, proxyReq.ServiceUrl)
-		fmt.Printf("%s: %s\n", models.ApronServiceRequest_HttpMethod_name[int32(proxyReq.HttpMethod)], serviceUrl)
-
-		netClient := &http.Client{
-			Timeout: time.Second * 5,
+		switch proxyReq.Schema {
+		case "http", "https":
+			go n.forwardHttpRequest(s, proxyReq)
+		case "ws", "wss":
+			go n.forwardWebsocketRequest(s, proxyReq)
+		default:
+			panic(fmt.Errorf("wrong schema: %s", proxyReq.Schema))
 		}
 
-		req, err := http.NewRequest(HttpMethodMapping[proxyReq.HttpMethod], serviceUrl, nil)
-		resp, err := netClient.Do(req)
-		defer resp.Body.Close()
-
-		bodyBytes, err := io.ReadAll(resp.Body)
-		internal.CheckError(err)
-
-		err = WriteBytesViaStream(s, bodyBytes)
-		internal.CheckError(err)
 	})
+}
+
+func (n *Node) forwardHttpRequest(s network.Stream, req *models.ApronServiceRequest) {
+	// Build http request and send
+	fmt.Printf("%s: %s\n", models.ApronServiceRequest_HttpMethod_name[int32(req.HttpMethod)], req.ServiceUrlWithSchema())
+
+	netClient := &http.Client{
+		Timeout: time.Second * 5,
+	}
+
+	r, err := http.NewRequest(HttpMethodInternalToStrMapping[req.HttpMethod], req.ServiceUrlWithSchema(), nil)
+	resp, err := netClient.Do(r)
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	internal.CheckError(err)
+
+	err = WriteBytesViaStream(s, bodyBytes)
+	internal.CheckError(err)
+}
+
+func (n *Node) forwardWebsocketRequest(s network.Stream, req *models.ApronServiceRequest) {
+	fmt.Printf("Service URL: %s\n", req.ServiceUrlWithSchema())
+	ws, _, err := websocket.DefaultDialer.Dial(req.ServiceUrlWithSchema(), nil)
+	internal.CheckError(err)
+	// defer ws.Close()
+
+	go func() {
+		for {
+			_, msg, err := ws.ReadMessage()
+			internal.CheckError(err)
+
+			fmt.Printf("ws recv: %q\n", msg)
+
+			err = WriteBytesViaStream(s, msg)
+			internal.CheckError(err)
+		}
+	}()
 }
 
 // SetProxyRespStreamHandler set handler for response returned from remote gateway
@@ -192,41 +250,55 @@ func (n *Node) NewProxyResp(remoteNode *Node, content []byte) {
 	internal.CheckError(err)
 }
 
-func WriteBytesViaStream(s network.Stream, data []byte) error {
-	msgLen := len(data)
-	msgLenBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(msgLenBytes, uint64(msgLen))
+func (n *Node) StartMgmtApiServer() {
+	fasthttp.ListenAndServe(n.Config.MgmtAddr, func(ctx *fasthttp.RequestCtx) {
 
-	fmt.Printf("Proxy request len: %+v\n", msgLen)
-	_, err := s.Write(msgLenBytes)
-	if err != nil {
-		return err
-	}
-
-	_, err = s.Write(data)
-	if err != nil {
-		return nil
-	}
-
-	return nil
+	})
 }
 
-func ReadBytesViaStream(s network.Stream) ([]byte, error) {
-	reader := bufio.NewReader(s)
-	var msgLen uint64
-	err := binary.Read(reader, binary.BigEndian, &msgLen)
-	if err != nil {
-		return nil, err
-	}
+func (n *Node) StartForwardService() {
+	fasthttp.ListenAndServe(n.Config.ForwardServiceAddr, func(ctx *fasthttp.RequestCtx) {
+		// Parse request URL and split service
+		fmt.Printf("Ctx path: %s\n", ctx.Path())
+		urlElements := strings.Split(string(ctx.Path()), "/")
+		if len(urlElements) < 4 {
+			ctx.Error("Wrong request"+
+				"URL format", fasthttp.StatusBadRequest)
+			return
+		}
+		srvKey := urlElements[1]
+		srvVer := urlElements[2]
+		userKey := urlElements[3]
+		requestUrl := strings.Join(urlElements[4:], "/")
+		// TODO: Handle query params and body
+		fmt.Printf("Request service: %s with key: %s, reqUrl: %s, ver: %s\n", srvKey, userKey, requestUrl, srvVer)
 
-	fmt.Printf("Received msg len: %+v\n", msgLen)
+		servicePeerId, found := n.servicePeerMapping[srvKey]
+		if !found {
+			ctx.Error("Service not found", fasthttp.StatusNotFound)
+			return
+		}
 
-	proxyReqBuf := make([]byte, msgLen)
+		if servicePeerId == n.selfID {
 
-	_, err = reader.Read(proxyReqBuf)
-	if err != nil {
-		return nil, err
-	}
+		} else {
+			// TODO: Find service from saved services list, and update request info to that object, then send proxy request
+			service, found := n.services[srvKey]
+			if !found {
+				// Service is in the peer mapping but not in services list, internal error
+				ctx.Error("Service data missing, contract help", fasthttp.StatusInternalServerError)
+				return
+			}
 
-	return proxyReqBuf, nil
+			req := &models.ApronServiceRequest{
+				HttpMethod: HttpMethodStringToInternalMapping[string(ctx.Method())],
+				ServiceUrl: fmt.Sprintf("%s/%s", service.BaseUrl, requestUrl),
+				Schema:     service.Schema,
+			}
+			fmt.Printf("Req: %+v\n", req)
+			n.NewProxyRequest(servicePeerId, req)
+		}
+
+		// Find service from node registered service list
+	})
 }

@@ -24,7 +24,7 @@ func Discover(ctx context.Context, n *Node, dht *dht.IpfsDHT, rendezvous string)
 			return
 		case <-ticker.C:
 			peers, err := discovery.FindPeers(ctx, routingDiscovery, rendezvous)
-			//fmt.Printf("%s: Network peer count: %d\n", (*n.Host).ID().Pretty(), len(peers))
+			// fmt.Printf("%s: Network peer count: %d\n", (*n.Host).ID().Pretty(), len(peers))
 			internal.CheckError(err)
 
 			for _, p := range peers {
