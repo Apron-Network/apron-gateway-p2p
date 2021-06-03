@@ -10,6 +10,7 @@ require (
 	github.com/libp2p/go-libp2p-kad-dht v0.11.1
 	github.com/libp2p/go-libp2p-pubsub v0.4.1
 	github.com/multiformats/go-multiaddr v0.3.1
+	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/valyala/fasthttp v1.26.0
 	google.golang.org/protobuf v1.26.0
 )
