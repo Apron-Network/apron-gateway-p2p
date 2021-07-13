@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"apron.network/gateway-p2p/internal"
-	"apron.network/gateway-p2p/internal/handlers"
 	"apron.network/gateway-p2p/internal/trans_network"
 )
 
@@ -39,12 +38,6 @@ func main() {
 
 	// Start discover goroutines
 	go trans_network.Discover(ctx, node, kdht, "asdfasdf")
-
-	// Start management APIs
-	go handlers.StartMgmtApiServer(config)
-
-	// Start forward service
-	go handlers.StartForwardService(config)
 
 	select {}
 }

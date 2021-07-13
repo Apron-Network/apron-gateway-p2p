@@ -5,22 +5,52 @@ import (
 	"apron.network/gateway-p2p/internal/models"
 	"context"
 	"fmt"
+	"github.com/fasthttp/websocket"
+	"github.com/stretchr/testify/assert"
 	"io"
 	"net/http"
 	"testing"
 	"time"
 )
 
-var ctx = context.Background()
+var (
+	ctx           = context.Background()
+	httpsProvider = map[string]*models.ApronServiceProvider{
+		"httpbin": {
+			Id:          "httpbin_test",
+			Name:        "httpbin",
+			Desc:        "httpbin server",
+			CreatedAt:   1625711065622,
+			UpdatedAt:   1625711065622,
+			ExtraDetail: "",
+			BaseUrl:     "https://httpbin.org/anything",
+			Schema:      "https",
+		},
+	}
 
-// func TestNodeConnection(t *testing.T) {
-// 	bsNodes, clientNodes := BuildKdhtNetwork(ctx, 1, 1)
-//
-// 	time.Sleep(1 * time.Second)
-//
-// 	assert.Equal(t, (*bsNodes[0].Host).Peerstore().Peers().Len(), 2)
-// 	assert.Equal(t, (*clientNodes[0].Host).Peerstore().Peers().Len(), 2)
-// }
+	wsProvider = map[string]*models.ApronServiceProvider{
+		"echo": {
+			Id:          "ws_echo",
+			Name:        "ws echo",
+			Desc:        "echo ws server from websocket.org",
+			CreatedAt:   1625711065622,
+			UpdatedAt:   1625711065622,
+			ExtraDetail: "",
+			BaseUrl:     "wss://echo.websocket.org",
+			Schema:      "wss",
+		},
+		"stream": {},
+	}
+)
+
+func TestNodeConnection(t *testing.T) {
+	bsNodes, clientNodes := BuildKdhtNetwork(ctx, 1, 1)
+
+	time.Sleep(1 * time.Second)
+
+	assert.Equal(t, (*bsNodes[0].Host).Peerstore().Peers().Len(), 2)
+	assert.Equal(t, (*clientNodes[0].Host).Peerstore().Peers().Len(), 2)
+}
 
 func TestHttpRequestForward(t *testing.T) {
 	bsNodes, clientNodes := BuildKdhtNetwork(ctx, 1, 1)
@@ -28,19 +58,23 @@ func TestHttpRequestForward(t *testing.T) {
 
 	bsNode := bsNodes[0]
 	clientNode := clientNodes[0]
+	remoteNode := bsNodes[0]
 
 	// Add demo service. The service is registered as a service in bsNode[0],
 	// and the test client will send request to clientNode[0],
 	// the internal p2p network forwards the service to bsNode[0] and return the response.
 	httpbinService := &models.ApronService{
-		Id:      "httpbin-demo",
-		Name:    "httpbin",
-		BaseUrl: "httpbin.org/anything",
-		Schema:  "https",
-		Desc:    "httpbin test service",
+		Id: clientNode.Config.ForwardServiceAddr,
+		DomainName: "localhost",
+		Providers: []*models.ApronServiceProvider{
+			httpsProvider["httpbin"],
+		},
 	}
 
+	// Adding service here is for testing, should be replaced w/ normal adding service request and internal sync
 	clientNode.RegisterRemoteService((*bsNode.Host).ID(), httpbinService)
+	remoteNode.RegisterLocalService(httpbinService)
+
 
 	fmt.Println("SETUP DONE")
 
@@ -48,7 +82,8 @@ func TestHttpRequestForward(t *testing.T) {
 	netClient := &http.Client{
 		Timeout: time.Second * 5,
 	}
-	reqUrl := fmt.Sprintf("http://%s/httpbin-demo/v1/testkey/foobar", clientNode.Config.ForwardServiceAddr)
+
+	reqUrl := fmt.Sprintf("http://%s/v1/testkey/babvaasfasrfa", clientNode.Config.ForwardServiceAddr)
 	fmt.Printf("Request URL: %s\n", reqUrl)
 	resp, err := netClient.Get(reqUrl)
 	internal.CheckError(err)
@@ -59,45 +94,53 @@ func TestHttpRequestForward(t *testing.T) {
 
 	fmt.Printf("Status code: %d\n", resp.StatusCode)
 	fmt.Printf("Resp in client: %q\n", bodyBytes)
-
-	// TODO: Simulate http forward, find service node in local, and build proxy request and send to remote.
-	// Next: Process forward request in client node, get service key and find it in remote service list, then forward it.
+	// TODO: Test post body, query params, form params, header
 }
 
-// func TestWsRequestForward(t *testing.T) {
-// 	go StartDemoWebsocketServer()
-//
-// 	bsNodes, clientNodes := BuildKdhtNetwork(ctx, 1, 1)
-// 	time.Sleep(1 * time.Second)
-//
-// 	bsNode := bsNodes[0]
-// 	clientNode := clientNodes[0]
-//
-// 	// Add demo service. The service is registered as a service in bsNode[0],
-// 	// and the test client will send request to clientNode[0],
-// 	// the internal p2p network forwards the service to bsNode[0] and return the response.
-// 	httpbinService := &models.ApronService{
-// 		Id:      "ws-demo",
-// 		Name:    "ws-demo",
-// 		BaseUrl: "65.181.93.134:10429",
-// 		Schema:  "ws",
-// 		Desc:    "Demo ws service",
-// 	}
-//
-// 	clientNode.RegisterRemoteService((*bsNode.Host).ID(), httpbinService)
-//
-// 	reqUrl := fmt.Sprintf("ws://%s/ws-demo/v1/testkey/pms-ws/", clientNode.Config.ForwardServiceAddr)
-// 	fmt.Printf("Request URL: %s\n", reqUrl)
-//
-// 	c, _, err := websocket.DefaultDialer.Dial(reqUrl, nil)
-// 	internal.CheckError(err)
-// 	defer c.Close()
-//
-// 	go func() {
-// 		for {
-// 			_, msg, err := c.ReadMessage()
-// 			internal.CheckError(err)
-// 			fmt.Printf("Receive: %s\n", msg)
-// 		}
-// 	}()
-// }
+func TestWsRequestForward(t *testing.T) {
+	bsNodes, clientNodes := BuildKdhtNetwork(ctx, 1, 1)
+	time.Sleep(1 * time.Second)
+
+	bsNode := bsNodes[0]
+	clientNode := clientNodes[0]
+	remoteNode := bsNodes[0]
+
+	serverStr := fmt.Sprintf("localhost%s", clientNode.Config.ForwardServiceAddr)
+
+	// Add demo service. The service is registered as a service in bsNode[0],
+	// and the test client will send request to clientNode[0],
+	// the internal p2p network forwards the service to bsNode[0] and return the response.
+	wsEchoService := &models.ApronService{
+		Id: serverStr,
+		DomainName: "localhost",
+		Providers: []*models.ApronServiceProvider{
+			wsProvider["echo"],
+		},
+	}
+
+	clientNode.RegisterRemoteService((*bsNode.Host).ID(), wsEchoService)
+	remoteNode.RegisterLocalService(wsEchoService)
+
+	fmt.Println("SETUP DONE")
+
+	reqUrl := fmt.Sprintf("ws://%s/v1/testkey/", serverStr)
+	fmt.Printf("Request URL: %s\n", reqUrl)
+
+	dialer := websocket.Dialer{
+		HandshakeTimeout: 15 * time.Second,
+	}
+
+	c, _, err := dialer.Dial(reqUrl, nil)
+	internal.CheckError(err)
+
+	go func() {
+		defer c.Close()
+		for {
+			_, msg, err := c.ReadMessage()
+			internal.CheckError(err)
+			fmt.Printf("Receive: %s\n", msg)
+		}
+	}()
+
+	select {}
+}

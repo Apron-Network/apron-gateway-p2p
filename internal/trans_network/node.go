@@ -4,9 +4,10 @@ import (
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/models"
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
-	"github.com/gorilla/websocket"
+	"github.com/fasthttp/websocket"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -15,25 +16,9 @@ import (
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
-	"io"
-	"net/http"
-	"strings"
+	"log"
 	"time"
 )
-
-var HttpMethodInternalToStrMapping = map[models.ApronServiceRequest_HttpMethod]string{
-	models.ApronServiceRequest_GET:    "GET",
-	models.ApronServiceRequest_PUT:    "PUT",
-	models.ApronServiceRequest_POST:   "POST",
-	models.ApronServiceRequest_DELETE: "DELETE",
-}
-
-var HttpMethodStringToInternalMapping = map[string]models.ApronServiceRequest_HttpMethod{
-	"GET":    models.ApronServiceRequest_GET,
-	"PUT":    models.ApronServiceRequest_PUT,
-	"POST":   models.ApronServiceRequest_POST,
-	"DELETE": models.ApronServiceRequest_DELETE,
-}
 
 type Node struct {
 	Host   *host.Host
@@ -76,6 +61,10 @@ func NewNode(ctx context.Context, config *TransNetworkConfig) (*Node, error) {
 		servicePeerMapping: map[string]peer.ID{},
 	}, nil
 }
+
+/*******************************/
+// Self connection related logic
+/*******************************/
 
 // SetupServiceBroadcastListener set subscriber of service broadcast
 func (n *Node) SetupServiceBroadcastListener(ctx context.Context) {
@@ -122,8 +111,10 @@ func (n *Node) RegisterLocalService(service *models.ApronService) {
 }
 
 func (n *Node) RegisterRemoteService(peerId peer.ID, service *models.ApronService) {
+	fmt.Printf("Reg service id: %s to peer %s\n", service.Id, peerId.String())
 	n.services[service.Id] = *service
 	n.servicePeerMapping[service.Id] = peerId
+	fmt.Printf("RegRemoteService: servicePeerMappings: %+v\n", n.servicePeerMapping)
 }
 
 func (n *Node) NodeAddrStr() string {
@@ -134,33 +125,75 @@ func (n *Node) NodeAddrStr() string {
 
 // TODO: when new node join the network, it require to connect to all gw, and get services registered on the node
 
+/*******************************/
+// Proxy related logic
+/*******************************/
+
 // SetProxyRequestStreamHandler set handler to process proxy request
 func (n *Node) SetProxyRequestStreamHandler() {
-	(*n.Host).SetStreamHandler(protocol.ID(ProxyRequestStream), func(s network.Stream) {
-		// TODO: Forward request to remote service, and send respond to invoker via respstream
-		// Q: How to get src addr
+	(*n.Host).SetStreamHandler(protocol.ID(HttpProxyRequestStream), func(s network.Stream) {
 
-		msgByte, err := ReadBytesViaStream(s)
+		// TODO: This handler process ApronServiceRequest sent from client side node
+		// TODO: then the node try to find the service detail in local services list, then make the request
+		// TODO: So the node near client should only pass service name, account id and request params,
+		// TODO: and this handler node try to find service detail and build request.
+		// TODO: If there are any LB things, doing it here.
+
+		proxyReq, err := ParseProxyReqFromStream(s)
+		internal.CheckError(err)
+		fmt.Printf("Read HTTP proxy request from stream: %s\n", proxyReq)
+
+		// Get service detail from local services list and fill missing fields of request
+		serviceDetail := n.services[proxyReq.ServiceId]
+
+		clientSideReq := proxyReq.BuildHttpRequest(serviceDetail)
+		serviceSideResp := fasthttp.AcquireResponse()
+		defer fasthttp.ReleaseRequest(clientSideReq)
+		defer fasthttp.ReleaseResponse(serviceSideResp)
+
+		// log.Printf("Client side req: %+v", clientSideReq)
+		// log.Printf("Service detail in remote node: %+v", serviceDetail)
+
+		err = fasthttp.Do(clientSideReq, serviceSideResp)
 		internal.CheckError(err)
 
-		proxyReq := &models.ApronServiceRequest{}
-		err = proto.Unmarshal(msgByte, proxyReq)
+		respBody := serviceSideResp.Body()
 
-		fmt.Printf("Read stream: %s\n", proxyReq)
+		err = WriteBytesViaStream(s, respBody)
+		internal.CheckError(err)
+	})
 
-		// Send request to service and pass response back
-		netClient := &http.Client{
-			Timeout: time.Second * 5,
+	(*n.Host).SetStreamHandler(protocol.ID(WsProxyRequestStream), func(s network.Stream) {
+		proxyReq, err := ParseProxyReqFromStream(s)
+		internal.CheckError(err)
+		fmt.Printf("Read WS proxy request from stream: %s\n", proxyReq)
+
+		serviceDetail := n.services[proxyReq.ServiceId]
+
+		clientSideReq := proxyReq.BuildHttpRequest(serviceDetail)
+		defer fasthttp.ReleaseRequest(clientSideReq)
+
+		dialer := websocket.Dialer{
+			HandshakeTimeout: 15 * time.Second,
 		}
 
-		r, err := http.NewRequest(HttpMethodInternalToStrMapping[proxyReq.HttpMethod], proxyReq.ServiceUrlWithSchema(), nil)
-		resp, err := netClient.Do(r)
-		defer resp.Body.Close()
-		bodyBytes, err := io.ReadAll(resp.Body)
+		log.Printf("url: %s", clientSideReq.URI().String())
+		serviceWsConn, _, err := dialer.Dial(clientSideReq.URI().String(), nil)
 		internal.CheckError(err)
 
-		err = WriteBytesViaStream(s, bodyBytes)
-		internal.CheckError(err)
+		for true {
+			go func() {
+				_, serviceMsgBytes, err := serviceWsConn.ReadMessage()
+				internal.CheckError(err)
+				WriteBytesViaStream(s, serviceMsgBytes)
+			}()
+			go func() {
+				streamBytes, err := ReadBytesViaStream(s)
+				fmt.Printf("data read from remote peer stream: %q\n", streamBytes)
+				internal.CheckError(err)
+				serviceWsConn.WriteMessage(websocket.TextMessage, streamBytes)
+			}()
+		}
 	})
 }
 
@@ -169,9 +202,9 @@ func (n *Node) SetProxyRequestStreamHandler() {
 // TODO: Process other method and query params, post body, etc.
 func (n *Node) handleHttpForwardRequest(ctx *fasthttp.RequestCtx, peerId peer.ID, req *models.ApronServiceRequest) {
 	if peerId == n.selfID {
-
+		// TODO: function to send request to service
 	} else {
-		s, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(ProxyRequestStream))
+		s, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(HttpProxyRequestStream))
 		if err != nil {
 			ctx.Error(err.Error(), fasthttp.StatusInternalServerError)
 			return
@@ -197,6 +230,60 @@ func (n *Node) handleHttpForwardRequest(ctx *fasthttp.RequestCtx, peerId peer.ID
 	}
 }
 
+func (n *Node) handleWebsocketForwardRequest(ctx *fasthttp.RequestCtx, peerId peer.ID, req *models.ApronServiceRequest) {
+	// This is handler for websocket connection from client, should do upgrade things
+	upgrader := &websocket.FastHTTPUpgrader{
+		ReadBufferSize:  10240,
+		WriteBufferSize: 10240,
+		CheckOrigin: func(ctx *fasthttp.RequestCtx) bool {
+			return true
+		},
+	}
+
+	// Connect to remote
+	// TODO: Connect remote node with stream, and make remote peer connect to ws service and do conn things.
+
+	err := upgrader.Upgrade(ctx, func(clientWsConn *websocket.Conn) {
+		defer clientWsConn.Close()
+
+		// Create stream to remote peer
+		s, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(WsProxyRequestStream))
+		if err != nil {
+			ctx.Error(err.Error(), fasthttp.StatusInternalServerError)
+			return
+		}
+
+		// Send request detail, which makes remote node to create ws connection to service
+		reqBytes, err := proto.Marshal(req)
+		internal.CheckError(err)
+		err = WriteBytesViaStream(s, reqBytes)
+		internal.CheckError(err)
+
+		for {
+			// copy data received from clientWsConn to stream
+			go func() {
+				log.Printf("Blocked by reading message from client ws")
+				_, bytesReceivedFromClient, err := clientWsConn.ReadMessage()
+				internal.CheckError(err)
+				err = WriteBytesViaStream(s, bytesReceivedFromClient)
+				internal.CheckError(err)
+			}()
+
+			// copy data received from stream to clientWsConn
+			go func() {
+				log.Printf("Blocked by reading message from remote node")
+				streamBytes, err := ReadBytesViaStream(s)
+				internal.CheckError(err)
+				err = clientWsConn.WriteMessage(websocket.TextMessage, streamBytes)
+				internal.CheckError(err)
+			}()
+
+			err = clientWsConn.WriteMessage(websocket.TextMessage, []byte("abcdefg"))
+			internal.CheckError(err)
+			time.Sleep(2 * time.Second)
+		}
+	})
+	internal.CheckError(err)
 }
 
 // SetProxyRespStreamHandler set handler for response returned from remote gateway
@@ -218,60 +305,54 @@ func (n *Node) StartMgmtApiServer() {
 	})
 }
 
+// StartForwardService used to forward service request from client to correct gateway that registered the service.
+// The function first parses request sent from client to RequestDetail struct, then build ApronServiceRequest based
+// on the request data.
 func (n *Node) StartForwardService() {
 	fasthttp.ListenAndServe(n.Config.ForwardServiceAddr, func(ctx *fasthttp.RequestCtx) {
 		// Parse request URL and split service
-		fmt.Printf("Ctx path: %s\n", ctx.Path())
-		urlElements := strings.Split(string(ctx.Path()), "/")
-		if len(urlElements) < 4 {
-			ctx.Error("Wrong request"+
-				"URL format", fasthttp.StatusBadRequest)
-			return
-		}
-		srvKey := urlElements[1]
-		srvVer := urlElements[2]
-		userKey := urlElements[3]
-		requestUrl := strings.Join(urlElements[4:], "/")
-		// TODO: Handle query params and body
-		fmt.Printf("Request service: %s with key: %s, reqUrl: %s, ver: %s\n", srvKey, userKey, requestUrl, srvVer)
+		var rawReq bytes.Buffer
+		err := models.DumpRequestToBytes(&ctx.Request, &rawReq)
+		internal.CheckError(err)
 
-		fmt.Printf("servies: %+v\n", n.services)
-		fmt.Printf("servicePeerMappings: %+v\n", n.servicePeerMapping)
-		servicePeerId, found := n.servicePeerMapping[srvKey]
+		// log.Printf("Request: %s\n", ctx.Request.String())
+		// log.Printf("Request size: %d\n", len(ctx.Request.String()))
+		// log.Printf("Request size after processing: %d\n", rawReq.Len())
+
+		serviceNameStr := string(internal.ServiceHostnameToIdByte(ctx.Host()))
+
+		log.Printf("Service name: %s\n", serviceNameStr)
+		log.Printf("Current services : %+v\n", n.servicePeerMapping)
+
+		servicePeerId, found := n.servicePeerMapping[serviceNameStr]
 		if !found {
 			ctx.Error("Service not found", fasthttp.StatusNotFound)
 			return
 		}
 
-		service, found := n.services[srvKey]
+		service, found := n.services[serviceNameStr]
 		if !found {
 			// Service is in the peer mapping but not in services list, internal error
 			ctx.Error("Service data missing, contract help", fasthttp.StatusInternalServerError)
 			return
 		}
 
-		switch service.Schema {
-		case "http", "https":
-			req := &models.ApronServiceRequest{
-				HttpMethod: HttpMethodStringToInternalMapping[string(ctx.Method())],
-				ServiceUrl: fmt.Sprintf("%s/%s", service.BaseUrl, requestUrl),
-				Schema:     service.Schema,
-			}
-			n.handleHttpForwardRequest(ctx, servicePeerId, req)
-		case "ws", "wss":
-			// go n.handleWebsocketForwardRequest(ctx, servicePeerId, req)
-		default:
-			ctx.Error(fmt.Sprintf("Unknown service schema %s", service.Schema), fasthttp.StatusInternalServerError)
+		if len(service.Providers) < 1 {
+			ctx.Error("Service data error, contract help", fasthttp.StatusInternalServerError)
 			return
 		}
 
-		if servicePeerId == n.selfID {
-			// Invoke service directly
-
-		} else {
-			// Send service request to remote peer with pre defined stream, and receive response
+		req := &models.ApronServiceRequest{
+			ServiceId:  service.GetId(),
+			RespStream: "",
+			RawRequest: rawReq.Bytes(),
 		}
 
-		// Find service from node registered service list
+		fmt.Printf("Service URL: %s\n", ctx.Request.URI())
+		if websocket.FastHTTPIsWebSocketUpgrade(ctx) {
+			n.handleWebsocketForwardRequest(ctx, servicePeerId, req)
+		} else {
+			n.handleHttpForwardRequest(ctx, servicePeerId, req)
+		}
 	})
 }

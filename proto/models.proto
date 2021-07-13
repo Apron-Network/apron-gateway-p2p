@@ -10,19 +10,27 @@ message ApronApiKey {
   string account_id = 5;
 }
 
-message ApronService {
+message ApronServiceProvider {
   string id = 1;
   string name = 2;
-  string base_url = 3;
-  string schema = 4;
-  string desc = 5;
-  string logo = 6;
-  uint64 create_time = 7;
-  string service_provider_name = 8;
-  string service_provider_account = 9;
-  string service_usage = 10;
-  string service_price_plan = 11;
-  string service_declaimer = 12;
+  string desc = 3;
+  int64 created_at = 4;
+  int64 updated_at = 5;
+  string extra_detail = 6;
+
+  string base_url = 20;
+  string schema = 21;
+}
+
+message ApronService {
+  // Uniq id for service, will be generated automatically
+  string id = 1;
+
+  // hostname provides this service, will be used to search service while forwarding requesting.
+  string domain_name = 2;
+
+  // Providers for this service
+  repeated ApronServiceProvider providers = 10;
 }
 
 message ApronUser {
@@ -37,15 +45,41 @@ message AccessLog {
   string request_path = 5;
 }
 
+//message RequestDetail {
+//  // http, https, ws or wss
+//  string schema = 1;
+//
+//  enum HttpMethod {
+//    UNKNOWN = 0;
+//    GET = 1;
+//    POST = 2;
+//    PUT = 3;
+//    DELETE = 4;
+//  }
+//  HttpMethod http_method = 2;
+//
+//
+////  bytes host = 3;
+////  bytes path = 4;  // full path of forward request
+////  bytes service_name = 5;
+////  bytes user_key = 6; // identify for the request sender
+////
+////  // Other detail data for querying services
+////  bytes header_data = 10;
+////  string query_params = 11;
+////  string form_params = 12;
+////  bytes body_params = 13;
+////  bytes cookies = 14;
+////  bytes proxy_request_path = 15; // path sent to service
+////  uint64 version = 16;
+//}
+
 message ApronServiceRequest {
-  enum HttpMethod {
-    UNKNOWN = 0;
-    GET = 1;
-    POST = 2;
-    PUT = 3;
-    DELETE = 4;
-  }
-  HttpMethod http_method = 1;
-  string service_url = 2;
-  string schema = 3;
+  // Service id indicate the service, which will be used to fetch service detail in service side node
+  string service_id = 1;
+
+  string resp_stream = 2;
+
+  // raw request data, serialized from fasthttp request
+  bytes raw_request = 4;
 }

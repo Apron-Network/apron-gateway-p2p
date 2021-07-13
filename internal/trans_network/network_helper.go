@@ -1,10 +1,13 @@
 package trans_network
 
 import (
+	"apron.network/gateway-p2p/internal"
+	"apron.network/gateway-p2p/internal/models"
 	"bufio"
 	"encoding/binary"
 	"fmt"
 	"github.com/libp2p/go-libp2p-core/network"
+	"google.golang.org/protobuf/proto"
 )
 
 // WriteBytesViaStream writes data byte into network stream.
@@ -48,4 +51,20 @@ func ReadBytesViaStream(s network.Stream) ([]byte, error) {
 	}
 
 	return proxyReqBuf, nil
+}
+
+func ParseProxyReqFromStream(s network.Stream) (*models.ApronServiceRequest, error) {
+	msgByte, err := ReadBytesViaStream(s)
+	if err != nil {
+		return nil, err
+	}
+	internal.CheckError(err)
+
+	proxyReq := &models.ApronServiceRequest{}
+	err = proto.Unmarshal(msgByte, proxyReq)
+	if err != nil {
+		return nil, err
+	}
+
+	return proxyReq, nil
 }
