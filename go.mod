@@ -3,6 +3,7 @@ module apron.network/gateway-p2p
 go 1.16
 
 require (
+	github.com/fasthttp/websocket v1.4.3
 	github.com/gorilla/websocket v1.4.2
 	github.com/libp2p/go-libp2p v0.13.0
 	github.com/libp2p/go-libp2p-core v0.8.0
@@ -10,7 +11,7 @@ require (
 	github.com/libp2p/go-libp2p-kad-dht v0.11.1
 	github.com/libp2p/go-libp2p-pubsub v0.4.1
 	github.com/multiformats/go-multiaddr v0.3.1
-	github.com/stretchr/testify v1.6.1 // indirect
+	github.com/stretchr/testify v1.6.1
 	github.com/valyala/fasthttp v1.26.0
 	google.golang.org/protobuf v1.26.0
 )
