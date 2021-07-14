@@ -18,3 +18,4 @@ func ServiceHostnameToId(hostname string) string {
 func ServiceHostnameToIdByte(hostname []byte) []byte {
 	return bytes.Replace(hostname, []byte("."), []byte("_"), -1)
 }
+

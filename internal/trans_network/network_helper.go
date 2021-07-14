@@ -5,9 +5,10 @@ import (
 	"apron.network/gateway-p2p/internal/models"
 	"bufio"
 	"encoding/binary"
-	"fmt"
+	"github.com/fasthttp/websocket"
 	"github.com/libp2p/go-libp2p-core/network"
 	"google.golang.org/protobuf/proto"
+	"log"
 )
 
 // WriteBytesViaStream writes data byte into network stream.
@@ -18,7 +19,7 @@ func WriteBytesViaStream(s network.Stream, data []byte) error {
 	msgLenBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(msgLenBytes, uint64(msgLen))
 
-	fmt.Printf("Proxy request len: %+v\n", msgLen)
+	log.Printf("Proxy request len: %+v\n", msgLen)
 	_, err := s.Write(msgLenBytes)
 	if err != nil {
 		return err
@@ -41,7 +42,7 @@ func ReadBytesViaStream(s network.Stream) ([]byte, error) {
 		return nil, err
 	}
 
-	fmt.Printf("Received msg len: %+v\n", msgLen)
+	log.Printf("Received msg len: %+v\n", msgLen)
 
 	proxyReqBuf := make([]byte, msgLen)
 
@@ -67,4 +68,48 @@ func ParseProxyReqFromStream(s network.Stream) (*models.ApronServiceRequest, err
 	}
 
 	return proxyReq, nil
+}
+func ForwardWsMsgToInternalStream(src *websocket.Conn, dest *network.Stream, errCh chan error) {
+	for {
+		msgType, msgBytes, err := src.ReadMessage()
+		if err != nil {
+			log.Printf("src.ReadMessage failed, msgType=%d, msg=%s, err=%v\n", msgType, msgBytes, err)
+			if ce, ok := err.(*websocket.CloseError); ok {
+				msgBytes = websocket.FormatCloseMessage(ce.Code, ce.Text)
+			} else {
+				msgBytes = websocket.FormatCloseMessage(websocket.CloseAbnormalClosure, err.Error())
+			}
+
+			errCh <- err
+
+			// TODO: Write close to stream
+
+			break
+		}
+
+		err = WriteBytesViaStream(*dest, msgBytes)
+		if err != nil {
+			log.Printf("dest.WriteMessage error: %v\n", err)
+			errCh <- err
+			break
+		}
+	}
+}
+
+func ForwardInternalStreamToWsMsg(src *network.Stream, dest *websocket.Conn, errCh chan error) {
+	for {
+		msgByte, err := ReadBytesViaStream(*src)
+		if err != nil {
+			log.Printf("Read stream message error: %v\n", err)
+			errCh <- err
+			break
+		}
+
+		err = dest.WriteMessage(websocket.TextMessage, msgByte)
+		if err != nil {
+			log.Printf("Write ws message error: %v\n", err)
+			errCh <- err
+			break
+		}
+	}
 }
