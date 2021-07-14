@@ -8,6 +8,7 @@ import (
 	"github.com/fasthttp/websocket"
 	"github.com/stretchr/testify/assert"
 	"io"
+	"log"
 	"net/http"
 	"testing"
 	"time"
@@ -76,7 +77,7 @@ func TestHttpRequestForward(t *testing.T) {
 	remoteNode.RegisterLocalService(httpbinService)
 
 
-	fmt.Println("SETUP DONE")
+	fmt.Printf("\nSETUP DONE\n\n")
 
 	// Create test client and send request to local gateway, the gateway should find service info in local cache and forward the request
 	netClient := &http.Client{
@@ -121,7 +122,7 @@ func TestWsRequestForward(t *testing.T) {
 	clientNode.RegisterRemoteService((*bsNode.Host).ID(), wsEchoService)
 	remoteNode.RegisterLocalService(wsEchoService)
 
-	fmt.Println("SETUP DONE")
+	fmt.Printf("\nSETUP DONE\n\n")
 
 	reqUrl := fmt.Sprintf("ws://%s/v1/testkey/", serverStr)
 	fmt.Printf("Request URL: %s\n", reqUrl)
@@ -138,9 +139,17 @@ func TestWsRequestForward(t *testing.T) {
 		for {
 			_, msg, err := c.ReadMessage()
 			internal.CheckError(err)
-			fmt.Printf("Receive: %s\n", msg)
+			fmt.Printf("Client: Receive from local node: %s\n", msg)
 		}
 	}()
+
+	go func() {
+		time.Sleep(2 * time.Second)
+		log.Printf("Client: Writing abcdefg to server from client")
+		err = c.WriteMessage(websocket.TextMessage, []byte("abcdefg"))
+		internal.CheckError(err)
+	}()
+
 
 	select {}
 }
