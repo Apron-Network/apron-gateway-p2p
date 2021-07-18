@@ -39,9 +39,10 @@ type Node struct {
 	// Mapping of service and peer id, the key for this mapping is service key, and value is peer id, to locate service while receiving forward request
 	servicePeerMapping map[string]peer.ID
 
-	// Mapping of request stream id and client ctx. After receiving request from client side,
-	// the client side gateway add uniq streamID to forwarded ApronServiceRequest, and the streamID and the ctx of client will be saved here for later usage
-	streamIDClientCtxMapping map[string]*fasthttp.RequestCtx
+	// Mapping of request id and client ctx. After receiving request from client side,
+	// the client side gateway add uniq requestID to forwarded ApronServiceRequest,
+	// and the streamID and the ctx of client will be saved here for later usage
+	requestIdChanMapping map[string]chan []byte
 }
 
 func NewNode(ctx context.Context, config *TransNetworkConfig) (*Node, error) {
@@ -59,12 +60,12 @@ func NewNode(ctx context.Context, config *TransNetworkConfig) (*Node, error) {
 	}
 
 	return &Node{
-		Host:                     &h,
-		Config:                   config,
-		services:                 map[string]models.ApronService{},
-		namedServices:            map[string][]models.ApronService{},
-		servicePeerMapping:       map[string]peer.ID{},
-		streamIDClientCtxMapping: map[string]*fasthttp.RequestCtx{},
+		Host:                 &h,
+		Config:               config,
+		services:             map[string]models.ApronService{},
+		namedServices:        map[string][]models.ApronService{},
+		servicePeerMapping:   map[string]peer.ID{},
+		requestIdChanMapping: map[string]chan []byte{},
 	}, nil
 }
 
@@ -207,6 +208,7 @@ func (n *Node) ProxyResponseStreamHandler(s network.Stream) {
 	proxyReq, err := ParseProxyRespFromStream(s)
 	internal.CheckError(err)
 	log.Printf("ProxyResponseStreamHandler: Read proxy resp from stream: %s\n", proxyReq)
+	n.requestIdChanMapping[proxyReq.RequestId] <- proxyReq.RawResponse
 }
 
 func (n *Node) SetProxyStreamHandlers() {
@@ -391,7 +393,8 @@ func (n *Node) StartForwardService() {
 		}
 
 		// Register the requestId to current node
-		n.streamIDClientCtxMapping[requestId] = ctx
+		msgCh := make(chan []byte)
+		n.requestIdChanMapping[requestId] = msgCh
 
 		log.Printf("ClientSideGateway: Service URL requested from : %s\n", ctx.Request.URI())
 		log.Printf("ClientSideGateway: servicePeedId : %s\n", servicePeerId.String())
@@ -412,6 +415,10 @@ func (n *Node) StartForwardService() {
 			// Request sent from client is websocket request, upgrade the connection and prepare to forward data
 			n.forwardWebsocketRequest(ctx, servicePeerId, req)
 		}
-		select {}
+
+		select {
+		case msg := <- msgCh:
+			ctx.Write(msg)
+		}
 	})
 }
