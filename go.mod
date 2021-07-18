@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/fasthttp/websocket v1.4.3
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/libp2p/go-libp2p v0.13.0
 	github.com/libp2p/go-libp2p-core v0.8.0
