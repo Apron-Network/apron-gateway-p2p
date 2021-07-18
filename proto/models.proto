@@ -78,8 +78,23 @@ message ApronServiceRequest {
   // Service id indicate the service, which will be used to fetch service detail in service side node
   string service_id = 1;
 
-  string resp_stream = 2;
+  // request_id is used to distinguish various requests in same stream. The request id will be sent to remote node,
+  // and all response from remote node for this request will have this id attached, then the sender node can pass
+  // the request to correct client.
+  string request_id = 2;
+
+  // request sender peer id, used to create response stream in remote node
+  string peer_id = 3;
+
+  // Client request schema, http/https/ws/wss
+  bytes client_schema = 4;
 
   // raw request data, serialized from fasthttp request
-  bytes raw_request = 4;
+  bytes raw_request = 10;
+}
+
+message ApronServiceResponse {
+  string peer_id = 1;
+  string request_id = 2;
+  bytes raw_response = 10;
 }
