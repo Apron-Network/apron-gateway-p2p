@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -39,9 +40,9 @@ func BuildKdhtNetwork(ctx context.Context, bsNodeCount int, clientCount int) ([]
 			panic(err)
 		}
 
+		log.Printf("Setup bs nodes")
 		node.SetupServiceBroadcastListener(ctx)
-		node.SetupServiceBroadcastListener(ctx)
-		node.SetProxyRequestStreamHandler()
+		node.SetProxyStreamHandlers()
 		bsNodes[i] = node
 
 		bsPeers.Set(node.NodeAddrStr())
@@ -71,8 +72,9 @@ func BuildKdhtNetwork(ctx context.Context, bsNodeCount int, clientCount int) ([]
 			panic(err)
 		}
 
+		log.Printf("Setup client nodes")
 		node.SetupServiceBroadcastListener(ctx)
-		node.SetProxyRequestStreamHandler()
+		node.SetProxyStreamHandlers()
 		clientNodes[i] = node
 		port += 3
 

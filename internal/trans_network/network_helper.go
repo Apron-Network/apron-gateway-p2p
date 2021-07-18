@@ -15,11 +15,13 @@ import (
 // It will write the content length (uint64) first to tell the reader how many bytes are followed.
 // TODO: Check whether there are method to avoid writing data length first
 func WriteBytesViaStream(s network.Stream, data []byte) error {
+	log.Printf("s is nil %+v", s == nil)
+	log.Printf("data is nil %+v", data == nil)
 	msgLen := len(data)
 	msgLenBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(msgLenBytes, uint64(msgLen))
 
-	log.Printf("Proxy request len: %+v\n", msgLen)
+	log.Printf("WriteBytesViaStream: Proxy request len: %+v, stream: %+v, data: %+q\n", msgLen, s.ID(), data)
 	_, err := s.Write(msgLenBytes)
 	if err != nil {
 		return err
@@ -69,6 +71,23 @@ func ParseProxyReqFromStream(s network.Stream) (*models.ApronServiceRequest, err
 
 	return proxyReq, nil
 }
+
+func ParseProxyRespFromStream(s network.Stream) (*models.ApronServiceResponse, error) {
+	msgByte, err := ReadBytesViaStream(s)
+	if err != nil {
+		return nil, err
+	}
+	internal.CheckError(err)
+
+	proxyResp := &models.ApronServiceResponse{}
+	err = proto.Unmarshal(msgByte, proxyResp)
+	if err != nil {
+		return nil, err
+	}
+
+	return proxyResp, nil
+}
+
 func ForwardWsMsgToInternalStream(src *websocket.Conn, dest *network.Stream, errCh chan error) {
 	for {
 		msgType, msgBytes, err := src.ReadMessage()
