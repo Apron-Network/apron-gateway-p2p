@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/fasthttp/websocket"
 	"github.com/stretchr/testify/assert"
-	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"testing"
@@ -65,7 +65,7 @@ func TestHttpRequestForward(t *testing.T) {
 	// and the test client will send request to clientNode[0],
 	// the internal p2p network forwards the service to bsNode[0] and return the response.
 	httpbinService := &models.ApronService{
-		Id: clientNode.Config.ForwardServiceAddr,
+		Id:         clientNode.Config.ForwardServiceAddr,
 		DomainName: "localhost",
 		Providers: []*models.ApronServiceProvider{
 			httpsProvider["httpbin"],
@@ -75,7 +75,6 @@ func TestHttpRequestForward(t *testing.T) {
 	// Adding service here is for testing, should be replaced w/ normal adding service request and internal sync
 	clientNode.RegisterRemoteService((*bsNode.Host).ID(), httpbinService)
 	remoteNode.RegisterLocalService(httpbinService)
-
 
 	fmt.Printf("\nSETUP DONE\n\n")
 
@@ -90,7 +89,7 @@ func TestHttpRequestForward(t *testing.T) {
 	internal.CheckError(err)
 	defer resp.Body.Close()
 
-	bodyBytes, err := io.ReadAll(resp.Body)
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	internal.CheckError(err)
 
 	fmt.Printf("Status code: %d\n", resp.StatusCode)
@@ -112,7 +111,7 @@ func TestWsRequestForward(t *testing.T) {
 	// and the test client will send request to clientNode[0],
 	// the internal p2p network forwards the service to bsNode[0] and return the response.
 	wsEchoService := &models.ApronService{
-		Id: serverStr,
+		Id:         serverStr,
 		DomainName: "localhost",
 		Providers: []*models.ApronServiceProvider{
 			wsProvider["echo"],
@@ -150,6 +149,43 @@ func TestWsRequestForward(t *testing.T) {
 		internal.CheckError(err)
 	}()
 
-
 	select {}
+}
+
+func Test_RegisterLocalService(t *testing.T) {
+
+	bsNodes, clientNodes := BuildKdhtNetwork(ctx, 1, 1)
+	time.Sleep(1 * time.Second)
+
+	//bsNode := bsNodes[0]
+	clientNode := clientNodes[0]
+	remoteNode := bsNodes[0]
+
+	// Add demo service. The service is registered as a service in bsNode[0],
+	// and the test client will send request to clientNode[0],
+	// the internal p2p network forwards the service to bsNode[0] and return the response.
+	serverStr := fmt.Sprintf("localhost%s", clientNode.Config.ForwardServiceAddr)
+	wsEchoService := &models.ApronService{
+		Id:         serverStr,
+		DomainName: "localhost",
+		Providers: []*models.ApronServiceProvider{
+			wsProvider["echo"],
+		},
+	}
+
+	serverStr2 := fmt.Sprintf("localhost2%s", clientNode.Config.ForwardServiceAddr)
+	wsEchoService2 := &models.ApronService{
+		Id:         serverStr2,
+		DomainName: "localhost2",
+		Providers: []*models.ApronServiceProvider{
+			wsProvider["echo2"],
+		},
+	}
+
+	//clientNode.RegisterRemoteService((*bsNode.Host).ID(), wsEchoService)
+	clientNode.RegisterLocalService(wsEchoService)
+	remoteNode.RegisterLocalService(wsEchoService2)
+
+	time.Sleep(2 * time.Second)
+	fmt.Printf("\nSETUP DONE\n\n")
 }

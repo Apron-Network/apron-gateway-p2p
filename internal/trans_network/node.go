@@ -96,32 +96,52 @@ func (n *Node) SetupServiceBroadcastListener(ctx context.Context) {
 func (n *Node) StartListeningOnServiceBroadcast(ctx context.Context) {
 	for {
 		msg, err := n.serviceBroadcastSub.Next(ctx)
-		internal.CheckError(err)
+		if err != nil {
+			log.Println("wait ServiceBroadcast err", err)
+			continue
+		}
 
 		if msg.ReceivedFrom == n.selfID {
 			continue
 		}
-
-		log.Printf("Received msg: %+v\n", msg)
+		service := new(models.ApronService)
+		err = proto.Unmarshal(msg.Data, service)
+		if err != nil {
+			log.Println("Unmarshal ApronService err", err)
+			continue
+		}
+		log.Printf("Received service: %+v\n", service)
+		n.RegisterRemoteService(msg.ReceivedFrom, service)
 	}
 }
 
 // BroadcastService broad local service to the network with configured topic,
 // so all nodes subscribed to the topic can update its local cache data
-func (n *Node) BroadcastService(ctx context.Context, msg string) error {
-	return n.broadcastServiceTopic.Publish(ctx, []byte(msg))
+func (n *Node) BroadcastService(ctx context.Context, service *models.ApronService) error {
+	data, err := proto.Marshal(service)
+	if err != nil {
+		return err
+	}
+	return n.broadcastServiceTopic.Publish(ctx, data)
 }
 
 func (n *Node) RegisterLocalService(service *models.ApronService) {
+	log.Printf("Reg local service id: %s to peer %s\n", service.Id, n.selfID)
 	n.services[service.Id] = *service
 	n.servicePeerMapping[service.Id] = n.selfID
+	if err := n.BroadcastService(context.Background(), service); err != nil {
+		log.Println("RegisterLocalService err", err)
+		panic(err)
+	}
+	log.Printf("Reg Service count: %+v\n", len(n.services))
 }
 
 func (n *Node) RegisterRemoteService(peerId peer.ID, service *models.ApronService) {
-	log.Printf("Reg service id: %s to peer %s\n", service.Id, peerId.String())
+	log.Printf("Reg remote service id: %s to peer %s\n", service.Id, peerId.String())
 	n.services[service.Id] = *service
 	n.servicePeerMapping[service.Id] = peerId
-	log.Printf("RegRemoteService: servicePeerMappings: %+v\n", n.servicePeerMapping)
+	log.Printf("Reg Service: servicePeerMappings: %+v\n", n.servicePeerMapping)
+	log.Printf("Reg Service count: %+v\n", len(n.services))
 }
 
 func (n *Node) NodeAddrStr() string {
@@ -417,7 +437,7 @@ func (n *Node) StartForwardService() {
 		}
 
 		select {
-		case msg := <- msgCh:
+		case msg := <-msgCh:
 			ctx.Write(msg)
 		}
 	})
