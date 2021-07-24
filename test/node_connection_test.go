@@ -97,7 +97,7 @@ func TestHttpRequestForward(t *testing.T) {
 	// TODO: Test post body, query params, form params, header
 }
 
-func TestWsRequestForward(t *testing.T) {
+func TestWsEchoRequestForward(t *testing.T) {
 	bsNodes, clientNodes := BuildKdhtNetwork(ctx, 1, 1)
 	time.Sleep(1 * time.Second)
 
@@ -130,23 +130,28 @@ func TestWsRequestForward(t *testing.T) {
 		HandshakeTimeout: 15 * time.Second,
 	}
 
+	log.Println("Client: Before dial")
 	c, _, err := dialer.Dial(reqUrl, nil)
+	log.Println("Client: Dial done")
 	internal.CheckError(err)
 
-	go func() {
-		defer c.Close()
-		for {
-			_, msg, err := c.ReadMessage()
-			internal.CheckError(err)
-			fmt.Printf("Client: Receive from local node: %s\n", msg)
-		}
-	}()
+	// go func() {
+	// 	for {
+	// 		_, msg, err := c.ReadMessage()
+	// 		internal.CheckError(err)
+	// 		fmt.Printf("Client: Receive from local node: %s\n", msg)
+	// 	}
+	// }()
 
 	go func() {
 		time.Sleep(2 * time.Second)
 		log.Printf("Client: Writing abcdefg to server from client")
 		err = c.WriteMessage(websocket.TextMessage, []byte("abcdefg"))
 		internal.CheckError(err)
+
+		_, msgBytes, err := c.ReadMessage()
+		internal.CheckError(err)
+		log.Printf("Client: Receive msg: %q\n", msgBytes)
 	}()
 
 	select {}

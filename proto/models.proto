@@ -86,15 +86,15 @@ message ApronServiceRequest {
   // request sender peer id, used to create response stream in remote node
   string peer_id = 3;
 
-  // Client request schema, http/https/ws/wss
-  bytes client_schema = 4;
+  // Whether client request is ws, includes ws and wss
+  bool is_ws_request = 4;
 
   // raw request data, serialized from fasthttp request
   bytes raw_request = 10;
 }
 
-message ApronServiceResponse {
+message ApronServiceData {
   string peer_id = 1;
   string request_id = 2;
-  bytes raw_response = 10;
+  bytes raw_data = 10;
 }
