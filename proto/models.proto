@@ -94,7 +94,6 @@ message ApronServiceRequest {
 }
 
 message ApronServiceData {
-  string peer_id = 1;
   string request_id = 2;
   bytes raw_data = 10;
 }
