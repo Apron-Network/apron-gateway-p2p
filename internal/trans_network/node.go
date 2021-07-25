@@ -168,7 +168,7 @@ func (n *Node) ProxyRequestStreamHandler(s network.Stream) {
 	peerId, err := peer.Decode(proxyReq.PeerId)
 	internal.CheckError(err)
 
-	respStream, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(ProxyDataStreamToServiceSide))
+	respStream, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(ProxyDataStreamFromServiceSide))
 	internal.CheckError(err)
 
 	// Get service detail from local services list and fill missing fields of request
@@ -195,7 +195,6 @@ func (n *Node) ProxyRequestStreamHandler(s network.Stream) {
 				log.Printf("ServiceSideGateway: Received message: %q\n", msgBytes)
 
 				forwardData := &models.ApronServiceData{
-					PeerId:    peerId.String(),
 					RequestId: proxyReq.RequestId,
 					RawData:   msgBytes,
 				}
@@ -206,10 +205,6 @@ func (n *Node) ProxyRequestStreamHandler(s network.Stream) {
 				internal.CheckError(err)
 			}
 		}()
-
-		select {
-
-		}
 	} else {
 		serviceSideResp := fasthttp.AcquireResponse()
 		defer fasthttp.ReleaseResponse(serviceSideResp)
@@ -237,28 +232,32 @@ func (n *Node) ProxyRequestStreamHandler(s network.Stream) {
 	}
 }
 
-func (n *Node) ProxyDataStreamHandler(s network.Stream) {
+func (n *Node) ProxyDataFromClientHandler(s network.Stream) {
+	log.Printf("ProxyDataFromClientHandler")
 	proxyData, err := ParseProxyDataFromStream(s)
 	internal.CheckError(err)
-	log.Printf("ProxyDataStreamHandler: Read proxy data from stream: %s\n", proxyData)
+	log.Printf("ProxyDataFromClientHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
 
-	streamProtocol := s.Protocol()
+	log.Printf("ProxyDataFromClientHandler: Send data to service\n")
+	err = n.serviceWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
+	internal.CheckError(err)
+}
 
-	if streamProtocol == protocol.ID(ProxyDataStreamFromClientSide) {
-		log.Printf("ProxyDataStreamHandler: Send data to service\n")
-		err := n.serviceWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
-		internal.CheckError(err)
-	} else {
-		log.Printf("ProxyDataStreamHandler: Send data to client\n")
-		err := n.clientWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
-		internal.CheckError(err)
-	}
+func (n *Node) ProxyDataFromServiceHandler(s network.Stream) {
+	log.Printf("ProxyDataFromServiceHandler")
+	proxyData, err := ParseProxyDataFromStream(s)
+	internal.CheckError(err)
+	log.Printf("ProxyDataFromServiceHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
+
+	log.Printf("ProxyDataFromServiceHandler: Send data to client\n")
+	err = n.clientWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
+	internal.CheckError(err)
 }
 
 func (n *Node) SetProxyStreamHandlers() {
 	(*n.Host).SetStreamHandler(protocol.ID(ProxyReqStream), n.ProxyRequestStreamHandler)
-	(*n.Host).SetStreamHandler(protocol.ID(ProxyDataStreamFromClientSide), n.ProxyDataStreamHandler)
-	(*n.Host).SetStreamHandler(protocol.ID(ProxyDataStreamToServiceSide), n.ProxyDataStreamHandler)
+	(*n.Host).SetStreamHandler(protocol.ID(ProxyDataStreamFromClientSide), n.ProxyDataFromClientHandler)
+	(*n.Host).SetStreamHandler(protocol.ID(ProxyDataStreamFromServiceSide), n.ProxyDataFromServiceHandler)
 }
 
 // SetProxyRequestStreamHandler set handler to process proxy request
@@ -326,7 +325,6 @@ func (n *Node) serveWebsocketRequest(ctx *fasthttp.RequestCtx, peerId peer.ID, r
 				log.Printf("ClientSideGateway: Received message: %q\n", msgBytes)
 
 				forwardData := &models.ApronServiceData{
-					PeerId:    peerId.String(),
 					RequestId: req.RequestId,
 					RawData:   msgBytes,
 				}
@@ -422,8 +420,6 @@ func (n *Node) StartForwardService() {
 		internal.CheckError(err)
 
 		if websocket.FastHTTPIsWebSocketUpgrade(ctx) {
-			// TODO
-			// Request sent from client is websocket request, upgrade the connection and prepare to forward data
 			n.serveWebsocketRequest(ctx, servicePeerId, req)
 		}
 	})

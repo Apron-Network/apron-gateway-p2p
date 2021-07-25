@@ -19,13 +19,14 @@ func WriteBytesViaStream(s network.Stream, data []byte) error {
 	msgLenBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(msgLenBytes, uint64(msgLen))
 
-	log.Printf("WriteBytesViaStream: Proxy request len: %+v, stream: %+v, data: %+q\n", msgLen, s.ID(), data)
+	log.Printf("WriteBytesViaStream: data len: %+v, stream: %+v, data: %+q\n", msgLen, s.Protocol(), data)
 	_, err := s.Write(msgLenBytes)
 	if err != nil {
 		return err
 	}
 
-	_, err = s.Write(data)
+	writtenSize, err := s.Write(data)
+	log.Printf("WriteBytesViaStream: written %d data to stream: %+v\n", writtenSize, s.Protocol())
 	if err != nil {
 		return nil
 	}
@@ -42,8 +43,6 @@ func ReadBytesViaStream(s network.Stream) ([]byte, error) {
 		return nil, err
 	}
 
-	log.Printf("Received msg len: %+v\n", msgLen)
-
 	proxyReqBuf := make([]byte, msgLen)
 
 	_, err = reader.Read(proxyReqBuf)
@@ -51,6 +50,7 @@ func ReadBytesViaStream(s network.Stream) ([]byte, error) {
 		return nil, err
 	}
 
+	log.Printf("ReadBytesViaStream: Received msg from stream: %+v, len: %+v, data: %+q\n", s.Protocol(), msgLen, proxyReqBuf)
 	return proxyReqBuf, nil
 }
 

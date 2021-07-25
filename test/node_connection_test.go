@@ -135,23 +135,23 @@ func TestWsEchoRequestForward(t *testing.T) {
 	log.Println("Client: Dial done")
 	internal.CheckError(err)
 
-	// go func() {
-	// 	for {
-	// 		_, msg, err := c.ReadMessage()
-	// 		internal.CheckError(err)
-	// 		fmt.Printf("Client: Receive from local node: %s\n", msg)
-	// 	}
-	// }()
+	go func() {
+		for {
+			time.Sleep(2 * time.Second)
+			log.Printf("\n\n\n")
+			log.Printf("Client: Writing abcdefg to server from client")
+			err = c.WriteMessage(websocket.TextMessage, []byte("abcdefg"))
+			internal.CheckError(err)
+			time.Sleep(3 * time.Second)
+		}
+	}()
 
 	go func() {
-		time.Sleep(2 * time.Second)
-		log.Printf("Client: Writing abcdefg to server from client")
-		err = c.WriteMessage(websocket.TextMessage, []byte("abcdefg"))
-		internal.CheckError(err)
-
-		_, msgBytes, err := c.ReadMessage()
-		internal.CheckError(err)
-		log.Printf("Client: Receive msg: %q\n", msgBytes)
+		for {
+			_, msgBytes, err := c.ReadMessage()
+			internal.CheckError(err)
+			log.Printf("Client: Receive msg: %q\n", msgBytes)
+		}
 	}()
 
 	select {}
@@ -162,7 +162,7 @@ func Test_RegisterLocalService(t *testing.T) {
 	bsNodes, clientNodes := BuildKdhtNetwork(ctx, 1, 1)
 	time.Sleep(1 * time.Second)
 
-	//bsNode := bsNodes[0]
+	// bsNode := bsNodes[0]
 	clientNode := clientNodes[0]
 	remoteNode := bsNodes[0]
 
@@ -187,7 +187,7 @@ func Test_RegisterLocalService(t *testing.T) {
 		},
 	}
 
-	//clientNode.RegisterRemoteService((*bsNode.Host).ID(), wsEchoService)
+	// clientNode.RegisterRemoteService((*bsNode.Host).ID(), wsEchoService)
 	clientNode.RegisterLocalService(wsEchoService)
 	remoteNode.RegisterLocalService(wsEchoService2)
 
