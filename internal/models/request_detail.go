@@ -77,29 +77,3 @@ func ExtractRequestDetailFromFasthttpRequest(req *fasthttp.Request, srv *ApronSe
 
 	return detail, nil
 }
-
-// func ExtractCtxRequestDetail(ctx *fasthttp.RequestCtx) (*RequestDetail, error) {
-// 	// // For ws request, there will be ws in the request path, which should be ignored while extracting user key
-// 	// pathWithKey := detail.Path
-// 	// if bytes.HasPrefix(detail.Path, []byte("/ws")) {
-// 	// 	// Remove /ws prefix to match regexp for extracting version and key
-// 	// 	pathWithKey = pathWithKey[3:]
-// 	// }
-// 	//
-// 	//
-// 	// pathMatchResult := ProxyRequestPathPattern.FindAllSubmatch(pathWithKey, -1)
-// 	// fmt.Printf("Path with k: %+q, match rslt: %+v\n", pathWithKey, pathMatchResult)
-// 	//
-// 	// if len(pathMatchResult) == 1 && len(pathMatchResult[0]) == 4 {
-// 	// 	detail.Version, _ = strconv.ParseUint(string(pathMatchResult[0][1]), 10, 32)
-// 	// 	detail.UserKey = pathMatchResult[0][2]
-// 	// 	detail.ProxyRequestPath = pathMatchResult[0][3]
-// 	// }
-// 	//
-// 	//
-// 	// detail.HeaderData = ctx.Request.Header.RawHeaders()
-// 	// detail.QueryParams = ctx.QueryArgs().String()
-// 	// detail.FormParams = ctx.PostArgs().String()
-// 	//
-// 	// detail.BodyParams = ctx.PostBody()
-// }

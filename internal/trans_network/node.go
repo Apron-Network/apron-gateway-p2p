@@ -268,20 +268,6 @@ func (n *Node) ProxyDataHandler(s network.Stream) {
 	}
 }
 
-// func (n *Node) ProxyDataFromServiceHandler(s network.Stream) {
-// 	// TODO: Merge this with ProxyDataFromClientServiceHandler
-// 	log.Printf("ProxyDataFromServiceHandler")
-// 	dataCh := make(chan models.ApronServiceData)
-// 	ParseProxyDataFromStream(s, dataCh)
-//
-// 	internal.CheckError(err)
-// 	log.Printf("ProxyDataFromServiceHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
-//
-// 	log.Printf("ProxyDataFromServiceHandler: Send data to client\n")
-// 	err = n.clientWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
-// 	internal.CheckError(err)
-// }
-
 func (n *Node) SetProxyStreamHandlers() {
 	(*n.Host).SetStreamHandler(protocol.ID(ProxyReqStream), n.ProxyRequestStreamHandler)
 	(*n.Host).SetStreamHandler(protocol.ID(ProxyDataStreamFromClientSide), n.ProxyDataHandler)
@@ -295,39 +281,7 @@ func (n *Node) SetProxyStreamHandlers() {
 // TODO: and this handler node try to find service detail and build request.
 // TODO: If there are any LB things, doing it here.
 
-// forwardRestfulRequest handles request sent from client side,
-// and check whether the request should be sent to remote peer or process locally, and send respond back.
-// TODO: Process other method and query params, post body, etc.
-// func (n *Node) forwardRestfulRequest(ctx *fasthttp.RequestCtx, peerId peer.ID, req *models.ApronServiceRequest) {
-// 	if peerId == n.selfID {
-// 		// TODO: function to send request to service
-// 	} else {
-// 		s, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(HttpProxyRequestStream))
-// 		if err != nil {
-// 			ctx.Error(err.Error(), fasthttp.StatusInternalServerError)
-// 			return
-// 		}
-//
-// 		// Build request package with passed in request
-// 		reqBytes, err := proto.Marshal(req)
-// 		internal.CheckError(err)
-// 		err = WriteBytesViaStream(s, reqBytes)
-// 		internal.CheckError(err)
-//
-// 		// Read response from remote
-// 		respBytes, err := ReadBytesViaStream(s)
-// 		internal.CheckError(err)
-//
-// 		if err != nil {
-// 			panic(err)
-// 		}
-// 		log.Printf("Resp: %s\n", string(respBytes))
-//
-// 		// TODO: Build structure to save response, should contains all data, includes status code, headers, etc.
-// 		ctx.Write(respBytes)
-// 	}
-// }
-
+// serveWebsocketRequest servers websocket request sent from client, and process data received from service
 func (n *Node) serveWebsocketRequest(ctx *fasthttp.RequestCtx, peerId peer.ID, req *models.ApronServiceRequest) {
 	// This is handler for websocket connection from client, should do upgrade things
 	upgrader := &websocket.FastHTTPUpgrader{

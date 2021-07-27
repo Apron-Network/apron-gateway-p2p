@@ -2,7 +2,6 @@ package internal
 
 import (
 	"bytes"
-	"strings"
 )
 
 func CheckError(e error) {
@@ -11,11 +10,6 @@ func CheckError(e error) {
 	}
 }
 
-func ServiceHostnameToId(hostname string) string {
-	return strings.Replace(hostname, ".", "_", -1)
-}
-
 func ServiceHostnameToIdByte(hostname []byte) []byte {
 	return bytes.Replace(hostname, []byte("."), []byte("_"), -1)
 }
-
