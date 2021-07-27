@@ -83,8 +83,9 @@ func TestHttpRequestForward(t *testing.T) {
 		Timeout: time.Second * 5,
 	}
 
-	reqUrl := fmt.Sprintf("http://%s/v1/testkey/babvaasfasrfa", clientNode.Config.ForwardServiceAddr)
-	fmt.Printf("Request URL: %s\n", reqUrl)
+	patternStr := "babvaasfasrfa"
+	reqUrl := fmt.Sprintf("http://%s/v1/testkey/%s", clientNode.Config.ForwardServiceAddr, patternStr)
+	fmt.Printf("Client: Request URL: %s\n", reqUrl)
 	resp, err := netClient.Get(reqUrl)
 	internal.CheckError(err)
 	defer resp.Body.Close()
@@ -94,7 +95,8 @@ func TestHttpRequestForward(t *testing.T) {
 
 	fmt.Printf("Status code: %d\n", resp.StatusCode)
 	fmt.Printf("Resp in client: %q\n", bodyBytes)
-	// TODO: Test post body, query params, form params, header
+	assert.Equal(t, resp.StatusCode, 200)
+	assert.Contains(t, string(bodyBytes), patternStr)
 }
 
 func TestWsEchoRequestForward(t *testing.T) {

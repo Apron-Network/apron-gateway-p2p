@@ -44,8 +44,9 @@ type Node struct {
 	// and the streamID and the ctx of client will be saved here for later usage
 	requestIdChanMapping map[string]chan []byte
 
-	clientWsConns  map[string]*websocket.Conn
-	serviceWsConns map[string]*websocket.Conn
+	clientWsConns      map[string]*websocket.Conn
+	serviceWsConns     map[string]*websocket.Conn
+	clientHttpDataChan map[string]chan []byte
 }
 
 func NewNode(ctx context.Context, config *TransNetworkConfig) (*Node, error) {
@@ -71,6 +72,7 @@ func NewNode(ctx context.Context, config *TransNetworkConfig) (*Node, error) {
 		requestIdChanMapping: map[string]chan []byte{},
 		clientWsConns:        map[string]*websocket.Conn{},
 		serviceWsConns:       map[string]*websocket.Conn{},
+		clientHttpDataChan:   map[string]chan []byte{},
 	}, nil
 }
 
@@ -175,15 +177,15 @@ func (n *Node) ProxyRequestStreamHandler(s network.Stream) {
 		peerId, err := peer.Decode(proxyReq.PeerId)
 		internal.CheckError(err)
 
-		respStream, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(ProxyDataStreamFromServiceSide))
-		internal.CheckError(err)
-
 		// Get service detail from local services list and fill missing fields of request
 		serviceDetail := n.services[proxyReq.ServiceId]
 		clientSideReq := proxyReq.BuildHttpRequest(serviceDetail)
 		defer fasthttp.ReleaseRequest(clientSideReq)
 
 		if proxyReq.IsWsRequest {
+			respStream, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(ProxyWsDataFromServiceSide))
+			internal.CheckError(err)
+
 			dialer := websocket.Dialer{
 				HandshakeTimeout: 15 * time.Second,
 			}
@@ -213,11 +215,11 @@ func (n *Node) ProxyRequestStreamHandler(s network.Stream) {
 			}()
 			select {}
 		} else {
+			respStream, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(ProxyHttpRespFromServiceSide))
+			internal.CheckError(err)
+
 			serviceSideResp := fasthttp.AcquireResponse()
 			defer fasthttp.ReleaseResponse(serviceSideResp)
-
-			// log.Printf("Client side req: %+v", clientSideReq)
-			// log.Printf("Service detail in remote node: %+v", serviceDetail)
 
 			err = fasthttp.Do(clientSideReq, serviceSideResp)
 			internal.CheckError(err)
@@ -239,8 +241,7 @@ func (n *Node) ProxyRequestStreamHandler(s network.Stream) {
 	}
 }
 
-func (n *Node) ProxyDataHandler(s network.Stream) {
-	log.Printf("ProxyDataHandler")
+func (n *Node) ProxyWsDataHandler(s network.Stream) {
 	dataCh := make(chan []byte)
 	go ReadBytesViaStream(s, dataCh)
 
@@ -251,13 +252,13 @@ func (n *Node) ProxyDataHandler(s network.Stream) {
 			err := proto.Unmarshal(proxyDataBytes, proxyData)
 			internal.CheckError(err)
 
-			log.Printf("ProxyDataHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
+			log.Printf("ProxyWsDataHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
 
-			if s.Protocol() == protocol.ID(ProxyDataStreamFromClientSide) {
+			if s.Protocol() == protocol.ID(ProxyWsDataFromClientSide) {
 				log.Printf("ProxyDataFromClientSideHandler: Send data to service\n")
 				err = n.serviceWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
 				internal.CheckError(err)
-			} else if s.Protocol() == protocol.ID(ProxyDataStreamFromServiceSide) {
+			} else if s.Protocol() == protocol.ID(ProxyWsDataFromServiceSide) {
 				log.Printf("ProxyDataFromServiceHandler: Send data to client\n")
 				err = n.clientWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
 				internal.CheckError(err)
@@ -268,10 +269,31 @@ func (n *Node) ProxyDataHandler(s network.Stream) {
 	}
 }
 
+func (n *Node) ProxyHttpRespHandler(s network.Stream) {
+	dataCh := make(chan []byte)
+	go ReadBytesViaStream(s, dataCh)
+
+	for {
+		select {
+		case proxyDataBytes := <-dataCh:
+			proxyData := &models.ApronServiceData{}
+			err := proto.Unmarshal(proxyDataBytes, proxyData)
+			internal.CheckError(err)
+
+			log.Printf("ProxyHttpRespHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
+
+			n.clientHttpDataChan[proxyData.RequestId] <- proxyData.RawData
+		}
+
+	}
+
+}
+
 func (n *Node) SetProxyStreamHandlers() {
 	(*n.Host).SetStreamHandler(protocol.ID(ProxyReqStream), n.ProxyRequestStreamHandler)
-	(*n.Host).SetStreamHandler(protocol.ID(ProxyDataStreamFromClientSide), n.ProxyDataHandler)
-	(*n.Host).SetStreamHandler(protocol.ID(ProxyDataStreamFromServiceSide), n.ProxyDataHandler)
+	(*n.Host).SetStreamHandler(protocol.ID(ProxyWsDataFromClientSide), n.ProxyWsDataHandler)
+	(*n.Host).SetStreamHandler(protocol.ID(ProxyWsDataFromServiceSide), n.ProxyWsDataHandler)
+	(*n.Host).SetStreamHandler(protocol.ID(ProxyHttpRespFromServiceSide), n.ProxyHttpRespHandler)
 }
 
 // SetProxyRequestStreamHandler set handler to process proxy request
@@ -292,7 +314,7 @@ func (n *Node) serveWebsocketRequest(ctx *fasthttp.RequestCtx, peerId peer.ID, r
 		},
 	}
 
-	dataStream, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(ProxyDataStreamFromClientSide))
+	dataStream, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(ProxyWsDataFromClientSide))
 
 	err = upgrader.Upgrade(ctx, func(clientWsConn *websocket.Conn) {
 		n.clientWsConns[req.RequestId] = clientWsConn
@@ -324,6 +346,17 @@ func (n *Node) serveWebsocketRequest(ctx *fasthttp.RequestCtx, peerId peer.ID, r
 		}
 	})
 	internal.CheckError(err)
+}
+
+func (n *Node) serveHttpRequest(ctx *fasthttp.RequestCtx, streamToServiceGW network.Stream, req *models.ApronServiceRequest) {
+	n.clientHttpDataChan[req.RequestId] = make(chan []byte)
+	select {
+	case respData := <-n.clientHttpDataChan[req.RequestId]:
+		_, err := ctx.Write(respData)
+		internal.CheckError(err)
+
+		delete(n.clientHttpDataChan, req.RequestId)
+	}
 }
 
 func (n *Node) StartMgmtApiServer() {
@@ -404,6 +437,8 @@ func (n *Node) StartForwardService() {
 
 		if websocket.FastHTTPIsWebSocketUpgrade(ctx) {
 			n.serveWebsocketRequest(ctx, servicePeerId, req)
+		} else {
+			n.serveHttpRequest(ctx, s, req)
 		}
 	})
 }
