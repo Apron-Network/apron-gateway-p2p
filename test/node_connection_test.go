@@ -33,12 +33,12 @@ var (
 		"echo": {
 			Id:          "ws_echo",
 			Name:        "ws echo",
-			Desc:        "echo ws server from websocket.org",
+			Desc:        "echo ws server from jmalloc/echo-server",
 			CreatedAt:   1625711065622,
 			UpdatedAt:   1625711065622,
 			ExtraDetail: "",
-			BaseUrl:     "wss://echo.websocket.org",
-			Schema:      "wss",
+			BaseUrl:     "ws://localhost:10000",
+			Schema:      "ws",
 		},
 		"stream": {},
 	}
@@ -142,6 +142,10 @@ func TestWsEchoRequestForward(t *testing.T) {
 			log.Printf("Client: Writing abcdefg to server from client")
 			err = c.WriteMessage(websocket.TextMessage, []byte("abcdefg"))
 			internal.CheckError(err)
+
+			err = c.WriteMessage(websocket.TextMessage, []byte("hijklmn"))
+			internal.CheckError(err)
+
 			time.Sleep(3 * time.Second)
 		}
 	}()
