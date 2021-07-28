@@ -17,15 +17,15 @@ import (
 var (
 	ctx           = context.Background()
 	httpsProvider = map[string]*models.ApronServiceProvider{
-		"httpbin": {
-			Id:          "httpbin_test",
-			Name:        "httpbin",
-			Desc:        "httpbin server",
+		"httpecho": {
+			Id:          "demo_httpecho",
+			Name:        "demo_httpecho",
+			Desc:        "demo httpecho server",
 			CreatedAt:   1625711065622,
 			UpdatedAt:   1625711065622,
 			ExtraDetail: "",
-			BaseUrl:     "https://httpbin.org/anything",
-			Schema:      "https",
+			BaseUrl:     StartDemoHttpbinServer(),
+			Schema:      "http",
 		},
 	}
 
@@ -33,11 +33,11 @@ var (
 		"echo": {
 			Id:          "ws_echo",
 			Name:        "ws echo",
-			Desc:        "echo ws server from jmalloc/echo-server",
+			Desc:        "echo ws server",
 			CreatedAt:   1625711065622,
 			UpdatedAt:   1625711065622,
 			ExtraDetail: "",
-			BaseUrl:     "ws://localhost:10000",
+			BaseUrl:     StartDemoWebsocketServer(),
 			Schema:      "ws",
 		},
 		"stream": {},
@@ -68,7 +68,7 @@ func TestHttpRequestForward(t *testing.T) {
 		Id:         clientNode.Config.ForwardServiceAddr,
 		DomainName: "localhost",
 		Providers: []*models.ApronServiceProvider{
-			httpsProvider["httpbin"],
+			httpsProvider["httpecho"],
 		},
 	}
 
@@ -83,7 +83,7 @@ func TestHttpRequestForward(t *testing.T) {
 		Timeout: time.Second * 5,
 	}
 
-	patternStr := "babvaasfasrfa"
+	patternStr := "apronservicetest"
 	reqUrl := fmt.Sprintf("http://%s/v1/testkey/%s", clientNode.Config.ForwardServiceAddr, patternStr)
 	fmt.Printf("Client: Request URL: %s\n", reqUrl)
 	resp, err := netClient.Get(reqUrl)

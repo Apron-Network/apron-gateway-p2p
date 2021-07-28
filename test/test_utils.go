@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"strconv"
 	"strings"
 	"sync"
@@ -90,11 +91,15 @@ func BuildKdhtNetwork(ctx context.Context, bsNodeCount int, clientCount int) ([]
 	return bsNodes, clientNodes
 }
 
-func DemoWsEcho(w http.ResponseWriter, r *http.Request) {
+func StartDemoHttpbinServer() string {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqDumpBytes, err := httputil.DumpRequest(r, true)
+		internal.CheckError(err)
+		_, err = fmt.Fprintf(w, fmt.Sprintf("Req: %q\n", reqDumpBytes))
+		internal.CheckError(err)
+	}))
 
-}
-func DemoWsStream(w http.ResponseWriter, r *http.Request) {
-
+	return s.URL
 }
 
 func StartDemoWebsocketServer() string {
@@ -106,14 +111,30 @@ func StartDemoWebsocketServer() string {
 		internal.CheckError(err)
 		defer c.Close()
 
-		for {
-			tick := time.Now().Nanosecond()
-			err = c.WriteMessage(websocket.TextMessage, []byte(strconv.Itoa(tick)))
-			internal.CheckError(err)
-			time.Sleep(time.Second)
-		}
-	}))
-	defer s.Close()
+		// Simulate stream function
+		go func() {
+			for {
+				tick := time.Now().Nanosecond()
+				err = c.WriteMessage(websocket.TextMessage, []byte(strconv.Itoa(tick)))
+				internal.CheckError(err)
+				time.Sleep(time.Second)
+			}
+		}()
 
+		// Simulate echo function
+		go func() {
+			for {
+				_, msgBytes, err := c.ReadMessage()
+				internal.CheckError(err)
+
+				respMsg := []byte("ECHO: ")
+				respMsg = append(respMsg, msgBytes...)
+
+				err = c.WriteMessage(websocket.TextMessage, respMsg)
+			}
+		}()
+
+		select {}
+	}))
 	return "ws" + strings.TrimPrefix(s.URL, "http")
 }
