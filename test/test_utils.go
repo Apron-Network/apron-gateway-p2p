@@ -2,6 +2,7 @@ package test
 
 import (
 	"apron.network/gateway-p2p/internal"
+	"apron.network/gateway-p2p/internal/models"
 	"apron.network/gateway-p2p/internal/trans_network"
 	"context"
 	"fmt"
@@ -89,6 +90,14 @@ func BuildKdhtNetwork(ctx context.Context, bsNodeCount int, clientCount int) ([]
 	}
 
 	return bsNodes, clientNodes
+}
+
+func RegisterService(node *trans_network.Node, service *models.ApronService, registerServiceAsRemoteService bool) {
+	if registerServiceAsRemoteService {
+		node.RegisterRemoteService((*node.Host).ID(), service)
+	} else {
+		node.RegisterLocalService(service)
+	}
 }
 
 func StartDemoHttpbinServer() string {
