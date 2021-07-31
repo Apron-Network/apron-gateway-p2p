@@ -416,7 +416,7 @@ func (n *Node) newOrUpdateServiceHandler(ctx *fasthttp.RequestCtx) {
 func (n *Node) UpdatePeers() {
 	peerRefreshTicker := time.NewTicker(time.Second)
 	defer peerRefreshTicker.Stop()
-
+	log.Printf("UpdatePeers")
 	for {
 		<-peerRefreshTicker.C
 		availablePeers := n.ps.ListPeers(BroadcastServiceChannel)

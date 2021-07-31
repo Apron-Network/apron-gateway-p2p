@@ -33,6 +33,9 @@ func main() {
 	// Setup listener for service broadcast
 	node.SetupServiceBroadcastListener(ctx)
 
+	// Start monitor for peers.
+	go node.UpdatePeers()
+
 	kdht, err := trans_network.NewKDHT(ctx, *node.Host, config.BootstrapPeers, &wg)
 	internal.CheckError(err)
 
@@ -41,9 +44,6 @@ func main() {
 
 	// Setup listener for management service
 	node.StartMgmtApiServer()
-
-	// Start monitor for peers.
-	go node.UpdatePeers()
 
 	select {}
 }
