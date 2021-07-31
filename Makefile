@@ -15,7 +15,7 @@ test:
 	go test -v -cover ./...
 
 clean:
-	-rm gwateway
+	-rm gateway
 
 
 .PHONY: gen clean
