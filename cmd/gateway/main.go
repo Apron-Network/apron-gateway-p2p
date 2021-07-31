@@ -30,14 +30,20 @@ func main() {
 		log.Printf("  %s/p2p/%s", addr, (*node.Host).ID().Pretty())
 	}
 
-	kdht, err := trans_network.NewKDHT(ctx, *node.Host, config.BootstrapPeers, &wg)
-	internal.CheckError(err)
-
 	// Setup listener for service broadcast
 	node.SetupServiceBroadcastListener(ctx)
 
+	kdht, err := trans_network.NewKDHT(ctx, *node.Host, config.BootstrapPeers, &wg)
+	internal.CheckError(err)
+
 	// Start discover goroutines
 	go trans_network.Discover(ctx, node, kdht, "asdfasdf")
+
+	// Setup listener for management service
+	node.StartMgmtApiServer()
+
+	// Start monitor for peers.
+	go node.UpdatePeers()
 
 	select {}
 }

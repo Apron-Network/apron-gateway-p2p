@@ -1,12 +1,19 @@
 package trans_network
 
 import (
-	"apron.network/gateway-p2p/internal"
-	"apron.network/gateway-p2p/internal/models"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"sync"
+	"time"
+
+	"encoding/json"
+
+	"apron.network/gateway-p2p/internal"
+	"apron.network/gateway-p2p/internal/models"
+	"github.com/fasthttp/router"
 	"github.com/fasthttp/websocket"
 	"github.com/google/uuid"
 	"github.com/libp2p/go-libp2p"
@@ -17,8 +24,6 @@ import (
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
-	"log"
-	"time"
 )
 
 type Node struct {
@@ -30,6 +35,7 @@ type Node struct {
 	serviceBroadcastSub   *pubsub.Subscription
 	selfID                peer.ID
 
+	mutex *sync.Mutex
 	// Save service has no name but only key. The key for service should be uniq
 	services map[string]models.ApronService
 
@@ -69,6 +75,7 @@ func NewNode(ctx context.Context, config *TransNetworkConfig) (*Node, error) {
 		services:             map[string]models.ApronService{},
 		namedServices:        map[string][]models.ApronService{},
 		servicePeerMapping:   map[string]peer.ID{},
+		mutex:                &sync.Mutex{},
 		requestIdChanMapping: map[string]chan []byte{},
 		clientWsConns:        map[string]*websocket.Conn{},
 		serviceWsConns:       map[string]*websocket.Conn{},
@@ -102,12 +109,14 @@ func (n *Node) SetupServiceBroadcastListener(ctx context.Context) {
 // which will be queried while receiving service request
 func (n *Node) StartListeningOnServiceBroadcast(ctx context.Context) {
 	for {
+		log.Printf("StartListeningOnServiceBroadcast")
 		msg, err := n.serviceBroadcastSub.Next(ctx)
 		if err != nil {
 			log.Println("wait ServiceBroadcast err", err)
 			continue
 		}
 
+		log.Printf("ReceivedFrom: %+s\n", msg.ReceivedFrom.Pretty())
 		if msg.ReceivedFrom == n.selfID {
 			continue
 		}
@@ -125,6 +134,7 @@ func (n *Node) StartListeningOnServiceBroadcast(ctx context.Context) {
 // BroadcastService broad local service to the network with configured topic,
 // so all nodes subscribed to the topic can update its local cache data
 func (n *Node) BroadcastService(ctx context.Context, service *models.ApronService) error {
+	log.Printf("Broadcast service: %+v\n", service)
 	data, err := proto.Marshal(service)
 	if err != nil {
 		return err
@@ -134,21 +144,25 @@ func (n *Node) BroadcastService(ctx context.Context, service *models.ApronServic
 
 func (n *Node) RegisterLocalService(service *models.ApronService) {
 	log.Printf("Reg local service id: %s to peer %s\n", service.Id, n.selfID)
+	n.mutex.Lock()
 	n.services[service.Id] = *service
 	n.servicePeerMapping[service.Id] = n.selfID
+	log.Printf("Reg Service count: %+v\n", len(n.services))
+	n.mutex.Unlock()
 	if err := n.BroadcastService(context.Background(), service); err != nil {
 		log.Println("RegisterLocalService err", err)
 		panic(err)
 	}
-	log.Printf("Reg Service count: %+v\n", len(n.services))
 }
 
 func (n *Node) RegisterRemoteService(peerId peer.ID, service *models.ApronService) {
 	log.Printf("Reg remote service id: %s to peer %s\n", service.Id, peerId.String())
+	n.mutex.Lock()
 	n.services[service.Id] = *service
 	n.servicePeerMapping[service.Id] = peerId
 	log.Printf("Reg Service: servicePeerMappings: %+v\n", n.servicePeerMapping)
 	log.Printf("Reg Service count: %+v\n", len(n.services))
+	n.mutex.Unlock()
 }
 
 func (n *Node) NodeAddrStr() string {
@@ -359,16 +373,99 @@ func (n *Node) serveHttpRequest(ctx *fasthttp.RequestCtx, streamToServiceGW netw
 	}
 }
 
+// list all service including local and remote.
+func (n *Node) listServiceHandler(ctx *fasthttp.RequestCtx) {
+	log.Printf("List Available Service")
+	rslt := make([]models.ApronService, 0, 100)
+
+	n.mutex.Lock()
+	for _, v := range n.services {
+		rslt = append(rslt, v)
+	}
+	n.mutex.Unlock()
+
+	respBody, err := json.Marshal(rslt)
+	internal.CheckError(err)
+	ctx.Write(respBody)
+}
+
+// Invoke RegisterLocalService to add service to local service list
+// Publish service changes to all network via pubsub in BroadcastServiceChannel
+func (n *Node) newOrUpdateServiceHandler(ctx *fasthttp.RequestCtx) {
+	log.Printf("New OR Update Available Service")
+
+	service := models.ApronService{}
+	detail, err := models.ExtractRequestDetailFromFasthttpRequest(&ctx.Request, &service)
+	internal.CheckError(err)
+	err = json.Unmarshal(detail.RequestBody, &service)
+	internal.CheckError(err)
+
+	// check if new or update
+	// currently only for debug
+	// if _, ok := n.services[service.Id]; ok {
+	// 	log.Printf("Update Available Service")
+
+	// } else {
+	// 	log.Printf("Create new Service")
+	// }
+	n.RegisterLocalService(&service)
+}
+
+// if a peer disconnected and wasn't found in topic.
+// All services related to it will be removed.
+func (n *Node) UpdatePeers() {
+	peerRefreshTicker := time.NewTicker(time.Second)
+	defer peerRefreshTicker.Stop()
+
+	for {
+		<-peerRefreshTicker.C
+		availablePeers := n.ps.ListPeers(BroadcastServiceChannel)
+		invaildService := make([]string, 0)
+		n.mutex.Lock()
+		for k, v := range n.servicePeerMapping {
+			found := false
+			for _, p := range availablePeers {
+				if v == p {
+					found = true
+				}
+			}
+
+			if !found {
+				invaildService = append(invaildService, k)
+			}
+
+		}
+
+		// remove related services
+		for _, service := range invaildService {
+			delete(n.services, service)
+			delete(n.servicePeerMapping, service)
+		}
+		n.mutex.Unlock()
+
+	}
+
+}
+
 func (n *Node) StartMgmtApiServer() {
-	fasthttp.ListenAndServe(n.Config.MgmtAddr, func(ctx *fasthttp.RequestCtx) {
-		// TODO: Manage service:
-		// TODO:   - Add local services:
-		// TODO:	 1. Invoke RegisterLocalService to add service to local service list
-		// TODO:	 2. Publish service changes to all network via pubsub in BroadcastServiceChannel
-		// TODO:	 1. All other nodes received the pubsub message and invoke RegisterRemoteService function to build service id and peer id mapping
-		// TODO:   - vice versa for removing local services
-		// TODO: Question: How to handle the gap between service changed in local but not changed in remote
-	})
+	// Init routers
+	router := router.New()
+
+	// Service related
+	serviceRouter := router.Group("/service")
+	serviceRouter.GET("/", n.listServiceHandler)
+	serviceRouter.POST("/", n.newOrUpdateServiceHandler)
+	// serviceRouter.DELETE("/")
+
+	// TODO: Manage service:
+	// TODO:   - Add local services:
+	// TODO:	 1. Invoke RegisterLocalService to add service to local service list
+	// TODO:	 2. Publish service changes to all network via pubsub in BroadcastServiceChannel
+	// TODO:	 1. All other nodes received the pubsub message and invoke RegisterRemoteService function to build service id and peer id mapping
+	// TODO:   - vice versa for removing local services
+	// TODO: Question: How to handle the gap between service changed in local but not changed in remote
+	log.Printf("Management API Server: %s\n", n.Config.MgmtAddr)
+	fasthttp.ListenAndServe(n.Config.MgmtAddr, router.Handler)
 }
 
 // StartForwardService used to forward service request from client to correct gateway that registered the service.
@@ -390,18 +487,22 @@ func (n *Node) StartForwardService() {
 		log.Printf("ClientSideGateway: Service name: %s\n", serviceNameStr)
 		log.Printf("ClientSideGateway: Current services mapping: %+v\n", n.servicePeerMapping)
 
+		n.mutex.Lock()
 		servicePeerId, found := n.servicePeerMapping[serviceNameStr]
 		if !found {
+			n.mutex.Unlock()
 			ctx.Error("ClientSideGateway: Service not found", fasthttp.StatusNotFound)
 			return
 		}
 
 		service, found := n.services[serviceNameStr]
 		if !found {
+			n.mutex.Unlock()
 			// Service is in the peer mapping but not in services list, internal error
 			ctx.Error("ClientSideGateway: Service data missing, contract help", fasthttp.StatusInternalServerError)
 			return
 		}
+		n.mutex.Unlock()
 
 		if len(service.Providers) < 1 {
 			ctx.Error("ClientSideGateway: Service data error, contract help", fasthttp.StatusInternalServerError)
