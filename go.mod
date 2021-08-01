@@ -3,7 +3,7 @@ module apron.network/gateway-p2p
 go 1.16
 
 require (
-	github.com/fasthttp/router v1.4.1 // indirect
+	github.com/fasthttp/router v1.4.1
 	github.com/fasthttp/websocket v1.4.3
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.4.2
