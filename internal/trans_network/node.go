@@ -28,7 +28,7 @@ import (
 
 type Node struct {
 	Host   *host.Host
-	Config *TransNetworkConfig
+	Config *NodeConfig
 
 	ps                    *pubsub.PubSub
 	broadcastServiceTopic *pubsub.Topic
@@ -55,15 +55,7 @@ type Node struct {
 	clientHttpDataChan map[string]chan []byte
 }
 
-func NewNode(ctx context.Context, config *TransNetworkConfig) (*Node, error) {
-	// r := rand.Reader
-	// priv, _, err := crypto.GenerateKeyPairWithReader(crypto.RSA, 2048, r)
-	// if err != nil {
-	//	return nil, err
-	// }
-	//
-	// addr, _ := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", config.ConnectPort))
-	// h, err := libp2p.New(ctx, libp2p.ListenAddrs(addr), libp2p.Identity(priv))
+func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
 	h, err := libp2p.New(context.Background(), libp2p.ListenAddrs())
 	if err != nil {
 		return nil, err
@@ -411,7 +403,7 @@ func (n *Node) newOrUpdateServiceHandler(ctx *fasthttp.RequestCtx) {
 	n.RegisterLocalService(&service)
 }
 
-// if a peer disconnected and wasn't found in topic.
+// UpdatePeers: if a peer disconnected and wasn't found in topic.
 // All services related to it will be removed.
 func (n *Node) UpdatePeers() {
 	peerRefreshTicker := time.NewTicker(time.Second)

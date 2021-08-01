@@ -30,7 +30,7 @@ func BuildKdhtNetwork(ctx context.Context, bsNodeCount int, clientCount int) ([]
 
 	// Build bootstrap nodes
 	for i := 0; i < bsNodeCount; i++ {
-		config := &trans_network.TransNetworkConfig{
+		config := &trans_network.NodeConfig{
 			BootstrapPeers:     nil,
 			InternalPort:       port,
 			MgmtAddr:           fmt.Sprintf(":%d", port+1),
@@ -62,7 +62,7 @@ func BuildKdhtNetwork(ctx context.Context, bsNodeCount int, clientCount int) ([]
 	// Build client nodes
 	for i := 0; i < clientCount; i++ {
 		fmt.Printf("bootstrap peers: %+v\n", bsPeers)
-		config := &trans_network.TransNetworkConfig{
+		config := &trans_network.NodeConfig{
 			BootstrapPeers:     bsPeers,
 			InternalPort:       port,
 			MgmtAddr:           fmt.Sprintf(":%d", port+1),
