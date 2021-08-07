@@ -109,6 +109,7 @@ func (n *Node) StartListeningOnServiceBroadcast(ctx context.Context) {
 		}
 
 		log.Printf("ReceivedFrom: %+s\n", msg.ReceivedFrom.Pretty())
+
 		if msg.ReceivedFrom == n.selfID {
 			continue
 		}
@@ -137,8 +138,15 @@ func (n *Node) BroadcastService(ctx context.Context, service *models.ApronServic
 func (n *Node) RegisterLocalService(service *models.ApronService) {
 	log.Printf("Reg local service id: %s to peer %s\n", service.Id, n.selfID)
 	n.mutex.Lock()
-	n.services[service.Id] = *service
-	n.servicePeerMapping[service.Id] = n.selfID
+	if service.IsDeleted {
+		log.Printf("Deleted Local service id: %s\n", service.Id)
+		delete(n.services, service.Id)
+		delete(n.servicePeerMapping, service.Id)
+	} else {
+		n.services[service.Id] = *service
+		n.servicePeerMapping[service.Id] = n.selfID
+	}
+
 	log.Printf("Reg Service count: %+v\n", len(n.services))
 	n.mutex.Unlock()
 	if err := n.BroadcastService(context.Background(), service); err != nil {
@@ -150,8 +158,16 @@ func (n *Node) RegisterLocalService(service *models.ApronService) {
 func (n *Node) RegisterRemoteService(peerId peer.ID, service *models.ApronService) {
 	log.Printf("Reg remote service id: %s to peer %s\n", service.Id, peerId.String())
 	n.mutex.Lock()
-	n.services[service.Id] = *service
-	n.servicePeerMapping[service.Id] = peerId
+
+	if service.IsDeleted {
+		log.Printf("Deleted Remote Service id: %s\n", service.Id)
+		delete(n.services, service.Id)
+		delete(n.servicePeerMapping, service.Id)
+	} else {
+		n.services[service.Id] = *service
+		n.servicePeerMapping[service.Id] = peerId
+	}
+
 	log.Printf("Reg Service: servicePeerMappings: %+v\n", n.servicePeerMapping)
 	log.Printf("Reg Service count: %+v\n", len(n.services))
 	n.mutex.Unlock()
@@ -371,6 +387,7 @@ func (n *Node) listServiceHandler(ctx *fasthttp.RequestCtx) {
 	rslt := make([]models.ApronService, 0, 100)
 
 	n.mutex.Lock()
+	log.Printf("List Service count: %+v\n", len(n.services))
 	for _, v := range n.services {
 		rslt = append(rslt, v)
 	}
@@ -412,9 +429,13 @@ func (n *Node) UpdatePeers() {
 	for {
 		<-peerRefreshTicker.C
 		availablePeers := n.ps.ListPeers(BroadcastServiceChannel)
+		log.Printf("availablePeers %++v", availablePeers)
 		invaildService := make([]string, 0)
 		n.mutex.Lock()
 		for k, v := range n.servicePeerMapping {
+			if v == n.selfID {
+				continue
+			}
 			found := false
 			for _, p := range availablePeers {
 				if v == p {
@@ -430,6 +451,7 @@ func (n *Node) UpdatePeers() {
 
 		// remove related services
 		for _, service := range invaildService {
+			log.Printf("deleted")
 			delete(n.services, service)
 			delete(n.servicePeerMapping, service)
 		}
@@ -437,6 +459,19 @@ func (n *Node) UpdatePeers() {
 
 	}
 
+}
+
+func (n *Node) deleteServiceHandler(ctx *fasthttp.RequestCtx) {
+	log.Printf("Delete Service")
+
+	service := models.ApronService{}
+	detail, err := models.ExtractRequestDetailFromFasthttpRequest(&ctx.Request, &service)
+	internal.CheckError(err)
+	err = json.Unmarshal(detail.RequestBody, &service)
+	service.IsDeleted = true
+	internal.CheckError(err)
+
+	n.RegisterLocalService(&service)
 }
 
 func (n *Node) StartMgmtApiServer() {
@@ -447,7 +482,7 @@ func (n *Node) StartMgmtApiServer() {
 	serviceRouter := router.Group("/service")
 	serviceRouter.GET("/", n.listServiceHandler)
 	serviceRouter.POST("/", n.newOrUpdateServiceHandler)
-	// serviceRouter.DELETE("/")
+	serviceRouter.DELETE("/", n.deleteServiceHandler)
 
 	// TODO: Manage service:
 	// TODO:   - Add local services:

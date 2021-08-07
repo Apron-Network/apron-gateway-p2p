@@ -31,6 +31,8 @@ message ApronService {
 
   // Providers for this service
   repeated ApronServiceProvider providers = 10;
+
+  bool is_deleted =11;
 }
 
 message ApronUser {
