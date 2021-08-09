@@ -32,9 +32,7 @@ func (n *Node) newOrUpdateServiceHandler(ctx *fasthttp.RequestCtx) {
 	log.Printf("New OR Update Available Service")
 
 	service := models.ApronService{}
-	detail, err := models.ExtractRequestDetailFromFasthttpRequest(&ctx.Request, &service)
-	internal.CheckError(err)
-	err = json.Unmarshal(detail.RequestBody, &service)
+	err := json.Unmarshal(ctx.Request.Body(), &service)
 	internal.CheckError(err)
 
 	// check if new or update
@@ -52,9 +50,7 @@ func (n *Node) deleteServiceHandler(ctx *fasthttp.RequestCtx) {
 	log.Printf("Delete Service")
 
 	service := models.ApronService{}
-	detail, err := models.ExtractRequestDetailFromFasthttpRequest(&ctx.Request, &service)
-	internal.CheckError(err)
-	err = json.Unmarshal(detail.RequestBody, &service)
+	err := json.Unmarshal(ctx.Request.Body(), &service)
 	service.IsDeleted = true
 	internal.CheckError(err)
 

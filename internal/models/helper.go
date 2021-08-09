@@ -9,13 +9,13 @@ import (
 	"path"
 )
 
-func (svrReq *ApronServiceRequest) BuildHttpRequest(serviceDetail ApronService) *fasthttp.Request {
+func (svrReq *ApronServiceRequest) BuildHttpRequest(serviceDetail *ApronService) *fasthttp.Request {
 	r := bufio.NewReader(bytes.NewReader(svrReq.RawRequest))
 	httpReq := fasthttp.AcquireRequest()
 	err := httpReq.Read(r)
 	internal.CheckError(err)
 
-	reqDetail, err := ExtractRequestDetailFromFasthttpRequest(httpReq, &serviceDetail)
+	reqDetail, err := ExtractRequestDetailFromFasthttpRequest(httpReq)
 	// log.Printf("Service detail: %+v", reqDetail)
 
 	// TODO: LB and multiple providers will be updated later

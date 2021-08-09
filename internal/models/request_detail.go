@@ -38,7 +38,7 @@ func DumpRequestToBytes(req *fasthttp.Request, buf *bytes.Buffer) error {
 	return err
 }
 
-func ExtractRequestDetailFromFasthttpRequest(req *fasthttp.Request, srv *ApronService) (*RequestDetail, error) {
+func ExtractRequestDetailFromFasthttpRequest(req *fasthttp.Request) (*RequestDetail, error) {
 	detail := &RequestDetail{
 		Host:        req.Host(),
 		Path:        req.URI().Path(),

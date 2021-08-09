@@ -207,7 +207,7 @@ func (n *Node) ProxyRequestStreamHandler(s network.Stream) {
 
 		// Get service detail from local services list and fill missing fields of request
 		serviceDetail := n.services[proxyReq.ServiceId]
-		clientSideReq := proxyReq.BuildHttpRequest(serviceDetail)
+		clientSideReq := proxyReq.BuildHttpRequest(&serviceDetail)
 		defer fasthttp.ReleaseRequest(clientSideReq)
 
 		if proxyReq.IsWsRequest {
@@ -488,7 +488,7 @@ func (n *Node) StartForwardService() {
 			return
 		}
 
-		reqDetail, err := models.ExtractRequestDetailFromFasthttpRequest(&ctx.Request, &models.ApronService{})
+		reqDetail, err := models.ExtractRequestDetailFromFasthttpRequest(&ctx.Request)
 
 		requestId := uuid.New().String()
 
