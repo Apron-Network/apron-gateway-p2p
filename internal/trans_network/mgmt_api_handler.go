@@ -96,5 +96,15 @@ func (n *Node) listRemoteServiceHandler(ctx *fasthttp.RequestCtx) {
 }
 
 func (n *Node) allUsageReportHandler(ctx *fasthttp.RequestCtx) {
-
+	if rslt, err := n.serviceUsageRecordManager.ExportAllUsage(); err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		ctx.SetBodyString(err.Error())
+	} else {
+		usageRecordsJsonByte, err := json.Marshal(rslt)
+		if err != nil {
+			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+			ctx.SetBodyString(err.Error())
+		}
+		ctx.SetBody(usageRecordsJsonByte)
+	}
 }

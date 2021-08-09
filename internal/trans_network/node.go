@@ -51,6 +51,8 @@ type Node struct {
 	clientWsConns      map[string]*websocket.Conn
 	serviceWsConns     map[string]*websocket.Conn
 	clientHttpDataChan map[string]chan []byte
+
+	serviceUsageRecordManager models.AggregatedAccessRecordManager
 }
 
 func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
@@ -59,17 +61,21 @@ func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
 		return nil, err
 	}
 
+	aggrAccessRecordManager := models.AggregatedAccessRecordManager{}
+	aggrAccessRecordManager.Init()
+
 	return &Node{
-		Host:                 &h,
-		Config:               config,
-		services:             map[string]models.ApronService{},
-		namedServices:        map[string][]models.ApronService{},
-		servicePeerMapping:   map[string]peer.ID{},
-		mutex:                &sync.Mutex{},
-		requestIdChanMapping: map[string]chan []byte{},
-		clientWsConns:        map[string]*websocket.Conn{},
-		serviceWsConns:       map[string]*websocket.Conn{},
-		clientHttpDataChan:   map[string]chan []byte{},
+		Host:                      &h,
+		Config:                    config,
+		services:                  map[string]models.ApronService{},
+		namedServices:             map[string][]models.ApronService{},
+		servicePeerMapping:        map[string]peer.ID{},
+		mutex:                     &sync.Mutex{},
+		requestIdChanMapping:      map[string]chan []byte{},
+		clientWsConns:             map[string]*websocket.Conn{},
+		serviceWsConns:            map[string]*websocket.Conn{},
+		clientHttpDataChan:        map[string]chan []byte{},
+		serviceUsageRecordManager: aggrAccessRecordManager,
 	}, nil
 }
 
@@ -193,6 +199,8 @@ func (n *Node) ProxyRequestStreamHandler(s network.Stream) {
 		err := proto.Unmarshal(proxyReqBytes, proxyReq)
 		internal.CheckError(err)
 		log.Printf("Read proxy request from stream: %s\n", proxyReq)
+
+		n.serviceUsageRecordManager.IncUsage(proxyReq.ServiceId, proxyReq.AccountId)
 
 		peerId, err := peer.Decode(proxyReq.PeerId)
 		internal.CheckError(err)
@@ -430,6 +438,7 @@ func (n *Node) StartMgmtApiServer() {
 	serviceRouter.DELETE("/", n.deleteServiceHandler)
 	serviceRouter.GET("/local", n.listLocalServiceHandler)
 	serviceRouter.GET("/remote", n.listRemoteServiceHandler)
+	serviceRouter.GET("/report", n.allUsageReportHandler)
 
 	// TODO: Manage service:
 	// TODO:   - Add local services:
@@ -451,10 +460,6 @@ func (n *Node) StartForwardService() {
 		var rawReq bytes.Buffer
 		err := models.DumpRequestToBytes(&ctx.Request, &rawReq)
 		internal.CheckError(err)
-
-		// log.Printf("Request: %s\n", ctx.Request.String())
-		// log.Printf("Request size: %d\n", len(ctx.Request.String()))
-		// log.Printf("Request size after processing: %d\n", rawReq.Len())
 
 		serviceNameStr := string(internal.ServiceHostnameToIdByte(ctx.Host()))
 
@@ -483,6 +488,8 @@ func (n *Node) StartForwardService() {
 			return
 		}
 
+		reqDetail, err := models.ExtractRequestDetailFromFasthttpRequest(&ctx.Request, &models.ApronService{})
+
 		requestId := uuid.New().String()
 
 		req := &models.ApronServiceRequest{
@@ -490,6 +497,7 @@ func (n *Node) StartForwardService() {
 			RequestId:   requestId,
 			PeerId:      (*n.Host).ID().String(),
 			IsWsRequest: websocket.FastHTTPIsWebSocketUpgrade(ctx),
+			AccountId: string(reqDetail.UserKey),
 			RawRequest:  rawReq.Bytes(),
 		}
 
@@ -501,6 +509,7 @@ func (n *Node) StartForwardService() {
 		log.Printf("ClientSideGateway: servicePeerId : %s\n", servicePeerId.String())
 		s, err := (*n.Host).NewStream(context.Background(), servicePeerId, protocol.ID(ProxyReqStream))
 		if err != nil {
+			log.Printf("forward service request err: %+v\n", err)
 			ctx.Error(err.Error(), fasthttp.StatusInternalServerError)
 			return
 		}
