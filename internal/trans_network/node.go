@@ -428,6 +428,8 @@ func (n *Node) StartMgmtApiServer() {
 	serviceRouter.GET("/", n.listServiceHandler)
 	serviceRouter.POST("/", n.newOrUpdateServiceHandler)
 	serviceRouter.DELETE("/", n.deleteServiceHandler)
+	serviceRouter.GET("/local", n.listLocalServiceHandler)
+	serviceRouter.GET("/remote", n.listRemoteServiceHandler)
 
 	// TODO: Manage service:
 	// TODO:   - Add local services:

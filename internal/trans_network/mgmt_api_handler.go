@@ -1,11 +1,12 @@
 package trans_network
 
 import (
+	"encoding/json"
+	"log"
+
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/models"
-	"encoding/json"
 	"github.com/valyala/fasthttp"
-	"log"
 )
 
 // list all service including local and remote.
@@ -60,7 +61,40 @@ func (n *Node) deleteServiceHandler(ctx *fasthttp.RequestCtx) {
 	n.RegisterLocalService(&service)
 }
 
+func (n *Node) listLocalServiceHandler(ctx *fasthttp.RequestCtx) {
+	log.Printf("List Local Available Service")
+	rslt := make([]models.ApronService, 0, 100)
+
+	n.mutex.Lock()
+	for k, v := range n.servicePeerMapping {
+		if v == n.selfID {
+			rslt = append(rslt, n.services[k])
+		}
+	}
+	n.mutex.Unlock()
+
+	respBody, err := json.Marshal(rslt)
+	internal.CheckError(err)
+	ctx.Write(respBody)
+}
+
+func (n *Node) listRemoteServiceHandler(ctx *fasthttp.RequestCtx) {
+	log.Printf("List Remote Available Service")
+	rslt := make([]models.ApronService, 0, 100)
+
+	n.mutex.Lock()
+	for k, v := range n.servicePeerMapping {
+		if v != n.selfID {
+			rslt = append(rslt, n.services[k])
+		}
+	}
+	n.mutex.Unlock()
+
+	respBody, err := json.Marshal(rslt)
+	internal.CheckError(err)
+	ctx.Write(respBody)
+}
+
 func (n *Node) allUsageReportHandler(ctx *fasthttp.RequestCtx) {
 
 }
-
