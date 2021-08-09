@@ -64,8 +64,8 @@ func TestHttpRequestForward(t *testing.T) {
 			httpsProvider["httpecho"],
 		},
 	}
-	RegisterService(bsNodes[0], httpbinService, true)
-	RegisterService(clientNodes[0], httpbinService, false)
+	RegisterService(bsNodes[0], httpbinService, false)
+	RegisterService(clientNodes[0], httpbinService, true)
 
 	log.Printf("\nSETUP DONE\n\n")
 
@@ -86,8 +86,24 @@ func TestHttpRequestForward(t *testing.T) {
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	internal.CheckError(err)
 
+	log.Println(resp)
+
 	assert.Equal(t, resp.StatusCode, 200)
 	assert.Contains(t, string(bodyBytes), patternStr)
+
+	mgmtUrl := fmt.Sprintf("http://%s/service/report", bsNodes[0].Config.MgmtAddr)
+	usageReportResp, err := netClient.Get(mgmtUrl)
+	internal.CheckError(err)
+	defer usageReportResp.Body.Close()
+
+	usageReportBodyBytes, err := ioutil.ReadAll(usageReportResp.Body)
+	internal.CheckError(err)
+
+	assert.Equal(t, usageReportResp.StatusCode, 200)
+	assert.Contains(t, string(usageReportBodyBytes), "testkey")
+	assert.Contains(t, string(usageReportBodyBytes), "usage")
+
+	// log.Printf("usage report: %q\n", usageReportBodyBytes)
 }
 
 func TestWsEchoRequestForward(t *testing.T) {

@@ -33,8 +33,8 @@ func BuildKdhtNetwork(ctx context.Context, bsNodeCount int, clientCount int) ([]
 		config := &trans_network.NodeConfig{
 			BootstrapPeers:     nil,
 			InternalPort:       port,
-			MgmtAddr:           fmt.Sprintf(":%d", port+1),
-			ForwardServiceAddr: fmt.Sprintf(":%d", port+2),
+			MgmtAddr:           fmt.Sprintf("localhost:%d", port+1),
+			ForwardServiceAddr: fmt.Sprintf("localhost:%d", port+2),
 		}
 
 		node, err := trans_network.NewNode(ctx, config)
@@ -65,8 +65,8 @@ func BuildKdhtNetwork(ctx context.Context, bsNodeCount int, clientCount int) ([]
 		config := &trans_network.NodeConfig{
 			BootstrapPeers:     bsPeers,
 			InternalPort:       port,
-			MgmtAddr:           fmt.Sprintf(":%d", port+1),
-			ForwardServiceAddr: fmt.Sprintf(":%d", port+2),
+			MgmtAddr:           fmt.Sprintf("localhost:%d", port+1),
+			ForwardServiceAddr: fmt.Sprintf("localhost:%d", port+2),
 		}
 
 		node, err := trans_network.NewNode(ctx, config)
