@@ -183,8 +183,6 @@ func (n *Node) NodeAddrStr() string {
 	return fmt.Sprintf("%s/p2p/%s", bsNodeAddr, bsIdStr)
 }
 
-// TODO: when new node join the network, it require to connect to all gw, and get services registered on the node
-
 /*******************************/
 // Proxy related logic
 /*******************************/
@@ -253,7 +251,6 @@ func (n *Node) ProxyRequestStreamHandler(s network.Stream) {
 			internal.CheckError(err)
 			respBody := serviceSideResp.Body()
 
-			// TODO: For http request, use existing stream
 			serviceResp := &models.ApronServiceData{
 				RequestId: proxyReq.RequestId,
 				RawData:   respBody,
@@ -324,12 +321,7 @@ func (n *Node) SetProxyStreamHandlers() {
 	(*n.Host).SetStreamHandler(protocol.ID(ProxyHttpRespFromServiceSide), n.ProxyHttpRespHandler)
 }
 
-// SetProxyRequestStreamHandler set handler to process proxy request
-// TODO: This handler process ApronServiceRequest sent from client side node
-// TODO: then the node try to find the service detail in local services list, then make the request
-// TODO: So the node near client should only pass service name, account id and request params,
-// TODO: and this handler node try to find service detail and build request.
-// TODO: If there are any LB things, doing it here.
+// TODO: Support LB.
 
 // serveWebsocketRequest servers websocket request sent from client, and process data received from service
 func (n *Node) serveWebsocketRequest(ctx *fasthttp.RequestCtx, peerId peer.ID, req *models.ApronServiceRequest) {
@@ -440,13 +432,6 @@ func (n *Node) StartMgmtApiServer() {
 	serviceRouter.GET("/remote", n.listRemoteServiceHandler)
 	serviceRouter.GET("/report", n.allUsageReportHandler)
 
-	// TODO: Manage service:
-	// TODO:   - Add local services:
-	// TODO:	 1. Invoke RegisterLocalService to add service to local service list
-	// TODO:	 2. Publish service changes to all network via pubsub in BroadcastServiceChannel
-	// TODO:	 1. All other nodes received the pubsub message and invoke RegisterRemoteService function to build service id and peer id mapping
-	// TODO:   - vice versa for removing local services
-	// TODO: Question: How to handle the gap between service changed in local but not changed in remote
 	log.Printf("Management API Server: %s\n", n.Config.MgmtAddr)
 	fasthttp.ListenAndServe(n.Config.MgmtAddr, router.Handler)
 }
