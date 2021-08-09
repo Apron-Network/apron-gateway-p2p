@@ -91,6 +91,9 @@ message ApronServiceRequest {
   // Whether client request is ws, includes ws and wss
   bool is_ws_request = 4;
 
+  // Account id identify use of requesting the service
+  string account_id = 5;
+
   // raw request data, serialized from fasthttp request
   bytes raw_request = 10;
 }
