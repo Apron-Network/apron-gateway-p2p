@@ -1,0 +1,29 @@
+version: "3.2"
+
+services:
+  apron-node:
+    container_name: apron-node
+    image: apron-node:latest
+    ports:
+      - "9944:9944"
+      - "9933:9933"
+      - "30333:30333"
+    command: bash -c "/apron-node --base-path /data --chain local --bob  --ws-external --rpc-external --rpc-methods Unsafe --validator --rpc-cors all --bootnodes /ip4/xxx.xxx.xxx.xxx/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp"
+    volumes:
+      - ./data:/data
+
+  polkadot-frontend:
+    container_name: polkadot-frontend
+    image: apron-node:latest
+    ports:
+      - "3001:3001"
+    command: bash -c "cd /apps && serve -p 3001 build"
+
+  apron-gateway:
+    container_name: apron-gateway
+    image: apron-node:latest
+    ports:
+      - "8082:8082"
+      - "8080:8080"
+      - "2145:2145"
+    command: bash -c "/gateway -peers /ip4/xxx.xxx.xxx.xxx/tcp/2145/p2p/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"

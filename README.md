@@ -11,6 +11,16 @@ $ make gen  # Generate protobuf model
 $ make build # Build gateway binary
 ```
 
+### Standalone Docker Image
+
+```shell 
+docker build -t apron_gateway -f Dockfile . 
+```
+
+### Full Gateway
+
+The full gateway inlcudes apron gateway and apron node. 
+
 ## Environment setup
 
 ### Standalone
@@ -53,6 +63,7 @@ Bootstrap peer can be got from bootstrap node log. Just like the below.
 ```
 ./gateway -peers /ip4/127.0.0.1/tcp/52552/p2p/QmSHwNRPEvhkaiYjVgsHPTks8zGsGLaXkNUDvwu2rM84wZ -p2p-port 2143 -service-addr :8090 -mgmt-addr localhost:8081
 ```
+
 
 
 
