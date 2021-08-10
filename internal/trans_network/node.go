@@ -20,6 +20,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
 )
@@ -56,7 +57,10 @@ type Node struct {
 }
 
 func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
-	h, err := libp2p.New(context.Background(), libp2p.ListenAddrs())
+	// 0.0.0.0 will listen on any interface device.
+	sourceMultiAddr, _ := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", config.InternalPort))
+
+	h, err := libp2p.New(context.Background(), libp2p.ListenAddrs(sourceMultiAddr))
 	if err != nil {
 		return nil, err
 	}
