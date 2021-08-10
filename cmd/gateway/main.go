@@ -18,7 +18,7 @@ func main() {
 	flag.Var(&config.BootstrapPeers, "peers", "Bootstrap Peers")
 	flag.IntVar(&config.InternalPort, "p2p-port", 2145, "Internal Port Used by p2p network")
 	flag.StringVar(&config.ForwardServiceAddr, "service-addr", ":8080", "Service addr used for proxy")
-	flag.StringVar(&config.MgmtAddr, "mgmt-addr", "localhost:8082", "API base for management")
+	flag.StringVar(&config.MgmtAddr, "mgmt-addr", ":8082", "API base for management")
 	flag.StringVar(&config.Rendezvous, "rendezvous", "ApronServiceNetwork", "Rendezvous to build DHT network")
 	flag.Parse()
 
