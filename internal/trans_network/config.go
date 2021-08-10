@@ -1,6 +1,9 @@
 package trans_network
 
-type TransNetworkConfig struct {
-	BootstrapPeers AddrList
-	ConnectPort    int
+type NodeConfig struct {
+	BootstrapPeers     AddrList
+	InternalPort       int
+	ForwardServiceAddr string
+	MgmtAddr           string
+	Rendezvous         string
 }

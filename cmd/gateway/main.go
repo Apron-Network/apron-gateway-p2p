@@ -1,21 +1,25 @@
 package main
 
 import (
-	"apron.network/gateway-p2p/internal"
-	"apron.network/gateway-p2p/internal/trans_network"
 	"context"
 	"flag"
 	"log"
 	"sync"
+
+	"apron.network/gateway-p2p/internal"
+	"apron.network/gateway-p2p/internal/trans_network"
 )
 
 func main() {
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
-	config := &trans_network.TransNetworkConfig{}
+	config := &trans_network.NodeConfig{}
 	flag.Var(&config.BootstrapPeers, "peers", "Bootstrap Peers")
-	flag.IntVar(&config.ConnectPort, "port", 2145, "Service port")
+	flag.IntVar(&config.InternalPort, "p2p-port", 2145, "Internal Port Used by p2p network")
+	flag.StringVar(&config.ForwardServiceAddr, "service-addr", ":8080", "Service addr used for proxy")
+	flag.StringVar(&config.MgmtAddr, "mgmt-addr", ":8082", "API base for management")
+	flag.StringVar(&config.Rendezvous, "rendezvous", "ApronServiceNetwork", "Rendezvous to build DHT network")
 	flag.Parse()
 
 	node, err := trans_network.NewNode(ctx, config)
@@ -27,16 +31,26 @@ func main() {
 		log.Printf("  %s/p2p/%s", addr, (*node.Host).ID().Pretty())
 	}
 
-	kdht, err := trans_network.NewKDHT(ctx, *node.Host, config.BootstrapPeers, &wg)
-	internal.CheckError(err)
-
 	// Setup listener for service broadcast
 	node.SetupServiceBroadcastListener(ctx)
 
-	// Start discover goroutines
-	go trans_network.Discover(ctx, node, kdht, "asdfasdf")
+	// Start monitor for peers.
+	go node.UpdatePeers()
 
-	// TODO: Start management APIs
+	// Setup stream handler
+	node.SetProxyStreamHandlers()
+
+	kdht, err := trans_network.NewKDHT(ctx, *node.Host, config.BootstrapPeers, &wg)
+	internal.CheckError(err)
+
+	// Start discover goroutines
+	go trans_network.Discover(ctx, node, kdht, config.Rendezvous)
+
+	// Setup listener for management service
+	go node.StartMgmtApiServer()
+
+	// Setup proxy request handler
+	go node.StartForwardService()
 
 	select {}
 }
