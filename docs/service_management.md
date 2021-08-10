@@ -50,21 +50,21 @@ curl --location --request POST 'http://localhost:8082/service' \
 *GET /service/*
 
 ```shell
-curl --location --request GET 'http://localhost:8081/service'
+curl --location --request GET 'http://localhost:8082/service'
 ```
 
 ### List Local Service from current gateway
 *GET /service/local*
 
 ```shell
-curl --location --request GET 'http://localhost:8081/service/local'
+curl --location --request GET 'http://localhost:8082/service/local'
 ```
 
 ### List Remote Service from other gateways
 *GET /service/remote*
 
 ```shell
-curl --location --request GET 'http://localhost:8081/service/remote'
+curl --location --request GET 'http://localhost:8082/service/remote'
 ```
 
 ### List Service and its P2P peers
