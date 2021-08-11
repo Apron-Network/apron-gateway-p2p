@@ -9,24 +9,34 @@ import (
 	"path"
 )
 
-func (svrReq *ApronServiceRequest) BuildHttpRequest(serviceDetail *ApronService) *fasthttp.Request {
+// RecoverClientRequest recover request serialized from client side to fasthttp request
+func (svrReq *ApronServiceRequest) RecoverClientRequest() (*fasthttp.Request, error) {
 	r := bufio.NewReader(bytes.NewReader(svrReq.RawRequest))
 	httpReq := fasthttp.AcquireRequest()
 	err := httpReq.Read(r)
-	internal.CheckError(err)
+	if err != nil {
+		return nil, err
+	}
 
-	reqDetail, err := ExtractRequestDetailFromFasthttpRequest(httpReq)
-	// log.Printf("Service detail: %+v", reqDetail)
+	return httpReq, nil
+}
 
+func (svrReq *ApronServiceRequest) BuildHttpRequestToService(reqDetail *RequestDetail, httpReq *fasthttp.Request, serviceDetail *ApronService) *fasthttp.Request {
 	// TODO: LB and multiple providers will be updated later
 	baseUrlStr := serviceDetail.Providers[0].GetBaseUrl()
 	serviceUrl, err := url.Parse(baseUrlStr)
 	internal.CheckError(err)
 
+	var clientSideQueryArgs fasthttp.Args
+	httpReq.URI().QueryArgs().CopyTo(&clientSideQueryArgs)
+
 	// Join path
 	serviceUrl.Path = path.Join(serviceUrl.Path, string(reqDetail.ProxyRequestPath))
-
 	httpReq.SetRequestURI(serviceUrl.String())
+
+	clientSideQueryArgs.VisitAll(func(k, v []byte) {
+		httpReq.URI().QueryArgs().AddBytesKV(k, v)
+	})
 
 	return httpReq
 }
