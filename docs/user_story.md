@@ -44,7 +44,7 @@ apron-gateway        | 2021/08/10 16:12:10   /ip4/xxx.xxx.xxx.xxx/tcp/2145/p2p/x
 
 ### The blockchain expoler 
 
-In your web browser, navigate to http://<boot_addr>:3001/?rpc=ws%3A%2F%2F<boot_addr>%3A9944#/explorer
+In your web browser, navigate to http://<Alice_addr>:3001/?rpc=ws%3A%2F%2F<Alice_addr>%3A9944#/explorer
 
 ### Bob Joins
 
@@ -64,9 +64,19 @@ $ ln -s docker-compose-client.yml docker-compose.yml
 $ docker-compose up -d
 ```
 
+### Deploy Contracts
+ Get contract address 
+
+### Deploy Nodejs tools
+
+
+### Deploy Marketplace
+
+
 ## Service Provider
 
 As a service provider, you set up a **httpbin** service on Bob Machine. 
+
 
 ### Setup Service
 
@@ -83,7 +93,7 @@ Please add the below into `docker-compose.yml` of Bob as a part of `services`.
 **Start Service**
 
 ```shell
-docker-compose start httpbin
+docker-compose up -d httpbin
 ```
 
 ### Register service
@@ -94,15 +104,15 @@ Service is registered by RESTful request. Here is the sample request:
 curl --location --request POST 'http://<Bob_addr>:8082/service' \
 --header 'Content-Type: application/json' \
 --data-raw '{
-    "id" : "<Bob_addr>:8080",
+    "id" : "<Alice_addr>:8080",
     "domain_name": "<Bob_addr>",
     "providers": [
         {
             "id" : "httpbin_provider1",
             "name": "httpbin provider1",
             "desc": "http provider1 desc",
-            "base_url": "https://<Bob_addr>/anything",
-            "schema": "https"
+            "base_url": "http://<Bob_addr>:8088/anything",
+            "schema": "http"
         }
     ]
 }'
@@ -133,6 +143,14 @@ As a user, you use the service from Alice machine.
 The service on Bob machine can be accessed in this way from Alice machine gateway.
 
 ```shell
-curl http://<Alice_addr>:8080/v1/testkey/foobar
+curl http://<Alice_addr>:8080/v1/testkey/anything/foobar
 ```
+
+### Check Service and Usage Reponrt on Marketplace
+
+
+
+
+
+
 
