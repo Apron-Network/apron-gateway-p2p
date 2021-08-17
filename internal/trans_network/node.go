@@ -205,15 +205,20 @@ func (n *Node) ProxyRequestStreamHandler(s network.Stream) {
 		internal.CheckError(err)
 		log.Printf("Read proxy request from stream: %s\n", proxyReq)
 
-		n.serviceUsageRecordManager.IncUsage(proxyReq.ServiceId, proxyReq.AccountId)
+		httpReq, err := proxyReq.RecoverClientRequest()
+		internal.CheckError(err)
+
+		clientReqDetail, err := models.ExtractRequestDetailFromFasthttpRequest(httpReq)
+
+		n.serviceUsageRecordManager.IncUsage(proxyReq.ServiceId, string(clientReqDetail.UserKey))
 
 		peerId, err := peer.Decode(proxyReq.PeerId)
 		internal.CheckError(err)
 
 		// Get service detail from local services list and fill missing fields of request
 		serviceDetail := n.services[proxyReq.ServiceId]
-		clientSideReq := proxyReq.BuildHttpRequest(&serviceDetail)
-		defer fasthttp.ReleaseRequest(clientSideReq)
+		reqToService := proxyReq.BuildHttpRequestToService(clientReqDetail, httpReq, &serviceDetail)
+		defer fasthttp.ReleaseRequest(reqToService)
 
 		if proxyReq.IsWsRequest {
 			respStream, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(ProxyWsDataFromServiceSide))
@@ -223,8 +228,8 @@ func (n *Node) ProxyRequestStreamHandler(s network.Stream) {
 				HandshakeTimeout: 15 * time.Second,
 			}
 
-			log.Printf("ServiceSideGateway: client side req URL: %s", clientSideReq.URI().String())
-			serviceWsConn, _, err := dialer.Dial(clientSideReq.URI().String(), nil)
+			log.Printf("ServiceSideGateway: client side req URL: %s", reqToService.URI().String())
+			serviceWsConn, _, err := dialer.Dial(reqToService.URI().String(), nil)
 			internal.CheckError(err)
 
 			n.serviceWsConns[proxyReq.RequestId] = serviceWsConn
@@ -254,7 +259,7 @@ func (n *Node) ProxyRequestStreamHandler(s network.Stream) {
 			serviceSideResp := fasthttp.AcquireResponse()
 			defer fasthttp.ReleaseResponse(serviceSideResp)
 
-			err = fasthttp.Do(clientSideReq, serviceSideResp)
+			err = fasthttp.Do(reqToService, serviceSideResp)
 			internal.CheckError(err)
 			respBody := serviceSideResp.Body()
 
@@ -443,8 +448,6 @@ func (n *Node) StartForwardService() {
 			return
 		}
 
-		reqDetail, err := models.ExtractRequestDetailFromFasthttpRequest(&ctx.Request)
-
 		requestId := uuid.New().String()
 
 		req := &models.ApronServiceRequest{
@@ -452,7 +455,6 @@ func (n *Node) StartForwardService() {
 			RequestId:   requestId,
 			PeerId:      (*n.Host).ID().String(),
 			IsWsRequest: websocket.FastHTTPIsWebSocketUpgrade(ctx),
-			AccountId:   string(reqDetail.UserKey),
 			RawRequest:  rawReq.Bytes(),
 		}
 

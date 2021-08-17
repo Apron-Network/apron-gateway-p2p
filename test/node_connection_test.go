@@ -4,6 +4,7 @@ import (
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/models"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/fasthttp/websocket"
 	"github.com/stretchr/testify/assert"
@@ -13,6 +14,18 @@ import (
 	"testing"
 	"time"
 )
+
+type HttpbinResponse struct {
+	Args    map[string]string `json:"args"`
+	Data    string            `json:"data"`
+	Files   map[string]string `json:"files"`
+	Form    map[string]string `json:"form"`
+	Headers map[string]string `json:"headers"`
+	Json    map[string]string `json:"json"`
+	Method  string            `json:"method"`
+	Origin  string            `json:"origin"`
+	Url     string            `json:"url"`
+}
 
 var (
 	ctx           = context.Background()
@@ -24,8 +37,9 @@ var (
 			CreatedAt:   1625711065622,
 			UpdatedAt:   1625711065622,
 			ExtraDetail: "",
-			BaseUrl:     StartDemoHttpbinServer(),
-			Schema:      "http",
+			// BaseUrl:     StartDemoHttpbinServer(),
+			BaseUrl: "http://localhost:7490/anything?this=test",
+			Schema:  "http",
 		},
 	}
 
@@ -75,21 +89,27 @@ func TestHttpRequestForward(t *testing.T) {
 	}
 
 	patternStr := "apronservicetest"
-	reqUrl := fmt.Sprintf("http://%s/v1/testkey/%s", clientNodes[0].Config.ForwardServiceAddr, patternStr)
+	reqUrl := fmt.Sprintf("http://%s/v1/testkey/%s?a=1", clientNodes[0].Config.ForwardServiceAddr, patternStr)
 	log.Printf("Client: Request URL: %s\n", reqUrl)
-	resp, err := netClient.Get(reqUrl)
+	req, err := http.NewRequest("GET", reqUrl, nil)
+	req.Header.Set("Test-Header", "test-header-value")
+	resp, err := netClient.Do(req)
 	internal.CheckError(err)
 	defer resp.Body.Close()
-
-	// TODO: Verify header info will also be transferred
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	internal.CheckError(err)
 
-	log.Println(resp)
+	httpbinResp := &HttpbinResponse{}
+	err = json.Unmarshal(bodyBytes, httpbinResp)
+	internal.CheckError(err)
 
 	assert.Equal(t, resp.StatusCode, 200)
-	assert.Contains(t, string(bodyBytes), patternStr)
+	assert.Contains(t, httpbinResp.Url, patternStr)
+	assert.Contains(t, httpbinResp.Args, "a")
+	assert.Equal(t, httpbinResp.Args["a"], "1")
+	assert.Contains(t, httpbinResp.Headers, "Test-Header")
+	assert.Equal(t, httpbinResp.Headers["Test-Header"], "test-header-value")
 
 	mgmtUrl := fmt.Sprintf("http://%s/service/report", bsNodes[0].Config.MgmtAddr)
 	usageReportResp, err := netClient.Get(mgmtUrl)
@@ -189,5 +209,4 @@ func Test_RegisterLocalService(t *testing.T) {
 	remoteNode.RegisterLocalService(wsEchoService2)
 
 	time.Sleep(2 * time.Second)
-	fmt.Printf("\nSETUP DONE\n\n")
 }
