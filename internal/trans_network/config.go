@@ -6,4 +6,5 @@ type NodeConfig struct {
 	ForwardServiceAddr string
 	MgmtAddr           string
 	Rendezvous         string
+	SecretKey          int
 }

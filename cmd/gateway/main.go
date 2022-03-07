@@ -20,6 +20,7 @@ func main() {
 	flag.StringVar(&config.ForwardServiceAddr, "service-addr", ":8080", "Service addr used for proxy")
 	flag.StringVar(&config.MgmtAddr, "mgmt-addr", ":8082", "API base for management")
 	flag.StringVar(&config.Rendezvous, "rendezvous", "ApronServiceNetwork", "Rendezvous to build DHT network")
+	flag.IntVar(&config.SecretKey, "secret-key", 0, "Secret key to specified host id")
 	flag.Parse()
 
 	node, err := trans_network.NewNode(ctx, config)

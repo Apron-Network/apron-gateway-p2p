@@ -3,9 +3,12 @@ package trans_network
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/libp2p/go-libp2p-core/crypto"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -60,7 +63,14 @@ func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
 	// 0.0.0.0 will listen on any interface device.
 	sourceMultiAddr, _ := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", config.InternalPort))
 
-	h, err := libp2p.New(context.Background(), libp2p.ListenAddrs(sourceMultiAddr))
+	var pk crypto.PrivKey
+	if config.SecretKey == 0 {
+		pk, _, _ = crypto.GenerateEd25519Key(rand.Reader)
+	} else {
+		pk, _, _ = crypto.GenerateEd25519Key(strings.NewReader(fmt.Sprintf("%032b", config.SecretKey)))
+	}
+
+	h, err := libp2p.New(context.Background(), libp2p.ListenAddrs(sourceMultiAddr), libp2p.Identity(pk))
 	if err != nil {
 		return nil, err
 	}
