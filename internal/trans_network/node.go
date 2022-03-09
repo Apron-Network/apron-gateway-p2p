@@ -56,11 +56,12 @@ type Node struct {
 	serviceWsConns     map[string]*websocket.Conn
 	clientHttpDataChan map[string]chan []byte
 
-	serviceUsageRecordManager models.AggregatedAccessRecordManager
+	serviceUsageRecordManager models.UsageRecordManager
 }
 
 func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
 	// 0.0.0.0 will listen on any interface device.
+	// TODO: Make the listening address configurable
 	sourceMultiAddr, _ := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", config.InternalPort))
 
 	var pk crypto.PrivKey
@@ -75,7 +76,7 @@ func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
 		return nil, err
 	}
 
-	aggrAccessRecordManager := models.AggregatedAccessRecordManager{}
+	aggrAccessRecordManager := models.UsageRecordManager{}
 	aggrAccessRecordManager.Init()
 
 	return &Node{
@@ -220,7 +221,7 @@ func (n *Node) ProxyRequestStreamHandler(s network.Stream) {
 
 		clientReqDetail, err := models.ExtractRequestDetailFromFasthttpRequest(httpReq)
 
-		n.serviceUsageRecordManager.IncUsage(proxyReq.ServiceId, string(clientReqDetail.UserKey))
+		n.serviceUsageRecordManager.RecordUsageFromProxyRequest(proxyReq, clientReqDetail)
 
 		peerId, err := peer.Decode(proxyReq.PeerId)
 		internal.CheckError(err)
