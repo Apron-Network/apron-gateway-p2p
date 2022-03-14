@@ -11,6 +11,7 @@ message ApronApiKey {
 }
 
 message ApronServiceProvider {
+  // TODO: Those fields are not using now, will be activated later
   string id = 1;
   string name = 2;
   string desc = 3;
@@ -22,12 +23,38 @@ message ApronServiceProvider {
   string schema = 21;
 }
 
+// {
+//  "id": "asdasdfa",
+//  "name": "Httpbin",
+//  "desc": "httpbin service for testing purpose.",
+//  "logo": "https://via.placeholder.com/150?text=httpbin",
+//  "usage": "Just run the command `curl http://bob.example.com:8081`. More information please refer the official documents.",
+//  "user_id": "0xblahblahblah",
+//  "providers": [
+//    {
+//      "base_url": "https://httpbin.org/anything",
+//      "schema": "http"
+//    }
+//  ]}
+
 message ApronService {
   // Uniq id for service, will be generated automatically
   string id = 1;
 
-  // hostname provides this service, will be used to search service while forwarding requesting.
-  string domain_name = 2;
+  // name of this service
+  string name = 2;
+
+  // Description of the service
+  string desc = 3;
+
+  // Logo image path for the service
+  string logo = 4;
+
+  // Brief usage
+  string usage = 5;
+
+  // Creator's user id
+  string user_id = 6;
 
   // Providers for this service
   repeated ApronServiceProvider providers = 10;
