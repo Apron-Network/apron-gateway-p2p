@@ -4,6 +4,7 @@ import (
 	"apron.network/gateway-p2p/internal"
 	"bufio"
 	"bytes"
+	"fmt"
 	"github.com/valyala/fasthttp"
 	"net/url"
 	"path"
@@ -23,8 +24,8 @@ func (svrReq *ApronServiceRequest) RecoverClientRequest() (*fasthttp.Request, er
 
 func (svrReq *ApronServiceRequest) BuildHttpRequestToService(reqDetail *RequestDetail, httpReq *fasthttp.Request, serviceDetail *ApronService) *fasthttp.Request {
 	// TODO: LB and multiple providers will be updated later
-	baseUrlStr := serviceDetail.Providers[0].GetBaseUrl()
-	serviceUrl, err := url.Parse(baseUrlStr)
+	provider := serviceDetail.Providers[0]
+	serviceUrl, err := url.Parse(fmt.Sprintf("%s://%s", provider.GetSchema(), provider.GetBaseUrl()))
 	internal.CheckError(err)
 
 	var clientSideQueryArgs fasthttp.Args

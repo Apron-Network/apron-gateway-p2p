@@ -219,16 +219,19 @@ func (n *Node) ProxyRequestStreamHandler(s network.Stream) {
 		httpReq, err := proxyReq.RecoverClientRequest()
 		internal.CheckError(err)
 
-		clientReqDetail, err := models.ExtractRequestDetailFromFasthttpRequest(httpReq)
+		var clientReqDetail models.RequestDetail
+		err = models.ExtractRequestDetailFromFasthttpRequest(httpReq, &clientReqDetail)
 
-		n.serviceUsageRecordManager.RecordUsageFromProxyRequest(proxyReq, clientReqDetail)
+		n.serviceUsageRecordManager.RecordUsageFromProxyRequest(proxyReq, &clientReqDetail)
 
 		peerId, err := peer.Decode(proxyReq.PeerId)
 		internal.CheckError(err)
 
 		// Get service detail from local services list and fill missing fields of request
 		serviceDetail := n.services[proxyReq.ServiceId]
-		reqToService := proxyReq.BuildHttpRequestToService(clientReqDetail, httpReq, &serviceDetail)
+		log.Printf("Service detail: %#v\n", serviceDetail)
+		reqToService := proxyReq.BuildHttpRequestToService(&clientReqDetail, httpReq, &serviceDetail)
+		log.Printf("Request to service: %#v\n", reqToService)
 		defer fasthttp.ReleaseRequest(reqToService)
 
 		if proxyReq.IsWsRequest {
@@ -432,7 +435,14 @@ func (n *Node) StartForwardService() {
 		err := models.DumpRequestToBytes(&ctx.Request, &rawReq)
 		internal.CheckError(err)
 
-		serviceNameStr := string(internal.ServiceHostnameToIdByte(ctx.Host()))
+		// TODO: ExtractRequestDetailFromFasthttpRequest contains extra logic which is not required here,
+		// change to some functions that only extract needed info
+		var clientReqDetail models.RequestDetail
+		err = models.ExtractRequestDetailFromFasthttpRequest(&ctx.Request, &clientReqDetail)
+		if err != nil {
+			ctx.Error(fmt.Sprintf("ClientSideGateway: extract service name error: %+v", err), fasthttp.StatusInternalServerError)
+		}
+		serviceNameStr := string(clientReqDetail.ServiceName)
 
 		log.Printf("ClientSideGateway: Service name: %s\n", serviceNameStr)
 		log.Printf("ClientSideGateway: Current services mapping: %+v\n", n.servicePeerMapping)

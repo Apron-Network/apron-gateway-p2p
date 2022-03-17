@@ -1,11 +1,11 @@
 package models
 
 import (
-	"apron.network/gateway-p2p/internal"
 	"bufio"
 	"bytes"
-	"fmt"
+	"errors"
 	"github.com/valyala/fasthttp"
+	"log"
 	"regexp"
 	"strconv"
 )
@@ -29,6 +29,7 @@ type RequestDetail struct {
 }
 
 var ProxyRequestPathPattern = regexp.MustCompile(`(?m)/v([1-9]\d{0,3})/([\w-]+)/?(.*)`)
+var ServiceIdUserKeyPattern = regexp.MustCompile(`([\w-]{10})([\w-]+)`)
 
 // DumpRequestToBytes dump fasthttp request to bytes.Buffer, then it will be sent to remote node
 func DumpRequestToBytes(req *fasthttp.Request, buf *bytes.Buffer) error {
@@ -38,17 +39,24 @@ func DumpRequestToBytes(req *fasthttp.Request, buf *bytes.Buffer) error {
 	return err
 }
 
-func ExtractRequestDetailFromFasthttpRequest(req *fasthttp.Request) (*RequestDetail, error) {
-	detail := &RequestDetail{
-		Host:        req.Host(),
-		Path:        req.URI().Path(),
-		ServiceName: internal.ServiceHostnameToIdByte(req.Host()),
-		Method:      req.Header.Method(),
+func ExtractServiceIdAndUserKey(combinedServiceIdUserKey []byte) ([]byte, []byte, error) {
+	matchResult := ServiceIdUserKeyPattern.FindAllSubmatch(combinedServiceIdUserKey, -1)
+	if len(matchResult) == 1 && len(matchResult[0]) == 3 {
+		return matchResult[0][1], matchResult[0][2], nil
+	} else {
+		return nil, nil, errors.New("invalid path format")
 	}
+}
 
-	detail.Headers = make(map[string][]string)
-	detail.QueryParams = make(map[string][]string)
-	detail.FormParams = make(map[string][]string)
+func ExtractRequestDetailFromFasthttpRequest(req *fasthttp.Request, detail *RequestDetail) error {
+	var err error
+
+	detail.Host = req.Host()
+	detail.Path = req.URI().Path()
+	detail.Method = req.Header.Method()
+	detail.Headers = map[string][]string{}
+	detail.QueryParams = map[string][]string{}
+	detail.FormParams = map[string][]string{}
 
 	req.Header.VisitAll(func(key, value []byte) {
 		detail.Headers[string(key)] = append(detail.Headers[string(key)], string(value))
@@ -67,13 +75,19 @@ func ExtractRequestDetailFromFasthttpRequest(req *fasthttp.Request) (*RequestDet
 	}
 
 	pathMatchResult := ProxyRequestPathPattern.FindAllSubmatch(pathWithKey, -1)
-	fmt.Printf("Path with k: %+q, match rslt: %+v\n", pathWithKey, pathMatchResult)
+	log.Printf("Path with k: %+q, match rslt: %+q\n", pathWithKey, pathMatchResult)
 
 	if len(pathMatchResult) == 1 && len(pathMatchResult[0]) == 4 {
 		detail.Version, _ = strconv.ParseUint(string(pathMatchResult[0][1]), 10, 32)
-		detail.UserKey = pathMatchResult[0][2]
+		detail.ServiceName, detail.UserKey, err = ExtractServiceIdAndUserKey(detail.Path)
+		if err != nil {
+			return err
+		}
+
 		detail.ProxyRequestPath = pathMatchResult[0][3]
+	} else {
+		return errors.New("invalid path format")
 	}
 
-	return detail, nil
+	return nil
 }
