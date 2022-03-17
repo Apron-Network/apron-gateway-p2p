@@ -1,14 +1,31 @@
 package trans_network
 
 import (
-	"encoding/json"
-	"log"
-	"time"
-
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/models"
+	"encoding/json"
+	"github.com/fasthttp/router"
 	"github.com/valyala/fasthttp"
+	"log"
 )
+
+func (n *Node) StartMgmtApiServer() {
+	// Init routers
+	router := router.New()
+
+	// Service related
+	serviceRouter := router.Group("/service")
+	serviceRouter.GET("/", n.listServiceHandler)
+	serviceRouter.POST("/", n.newOrUpdateServiceHandler)
+	serviceRouter.DELETE("/", n.deleteServiceHandler)
+	serviceRouter.GET("/local", n.listLocalServiceHandler)
+	serviceRouter.GET("/remote", n.listRemoteServiceHandler)
+	serviceRouter.GET("/peers", n.listServicePeerHandler)
+	serviceRouter.GET("/report", n.allUsageReportHandler)
+
+	log.Printf("Management API Server: %s\n", n.Config.MgmtAddr)
+	fasthttp.ListenAndServe(n.Config.MgmtAddr, router.Handler)
+}
 
 // list all service including local and remote.
 func (n *Node) listServiceHandler(ctx *fasthttp.RequestCtx) {
@@ -113,44 +130,4 @@ func (n *Node) allUsageReportHandler(ctx *fasthttp.RequestCtx) {
 		}
 		ctx.SetBody(usageRecordsJsonByte)
 	}
-}
-
-func (n *Node) UpdatePeers() {
-	peerRefreshTicker := time.NewTicker(time.Second)
-	defer peerRefreshTicker.Stop()
-	log.Printf("[Remote Service] Peers Monitor started")
-	for {
-		<-peerRefreshTicker.C
-		availablePeers := n.ps.ListPeers(BroadcastServiceChannel)
-		// log.Printf("availablePeers %++v", availablePeers)
-		invaildService := make([]string, 0)
-		n.mutex.Lock()
-		for k, v := range n.servicePeerMapping {
-			if v == n.selfID {
-				continue
-			}
-			found := false
-			for _, p := range availablePeers {
-				if v == p {
-					found = true
-				}
-			}
-
-			if !found {
-				invaildService = append(invaildService, k)
-			}
-
-		}
-
-		// remove related services
-		for _, service := range invaildService {
-			log.Printf("[Remote Service] peer %s disconnected\n", n.servicePeerMapping[service])
-			log.Printf("[Remote Service] remove service %s\n", n.services[service].Id)
-			delete(n.services, service)
-			delete(n.servicePeerMapping, service)
-		}
-		n.mutex.Unlock()
-
-	}
-
 }
