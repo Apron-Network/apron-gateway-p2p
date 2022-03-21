@@ -7,4 +7,6 @@ type NodeConfig struct {
 	MgmtAddr           string
 	Rendezvous         string
 	SecretKey          int
+	PinataAPIKey       string
+	PinataSecretKey    string
 }
