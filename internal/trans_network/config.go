@@ -9,4 +9,5 @@ type NodeConfig struct {
 	SecretKey          int
 	PinataAPIKey       string
 	PinataSecretKey    string
+	ReportInterval     int
 }
