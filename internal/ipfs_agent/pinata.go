@@ -1,4 +1,4 @@
-package internal
+package ipfs_agent
 
 import (
 	"encoding/json"
