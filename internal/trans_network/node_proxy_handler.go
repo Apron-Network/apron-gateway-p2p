@@ -2,9 +2,11 @@ package trans_network
 
 import (
 	"apron.network/gateway-p2p/internal"
+	"apron.network/gateway-p2p/internal/ipfs_agent"
 	"apron.network/gateway-p2p/internal/models"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/fasthttp/websocket"
@@ -15,6 +17,7 @@ import (
 	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
 	"log"
+	"os"
 	"time"
 )
 
@@ -296,4 +299,28 @@ func (n *Node) StartForwardService() {
 			n.serveHttpRequest(ctx, s, req)
 		}
 	})
+}
+
+func (n *Node) StartUploadUsageReportTask(uploadInterval int, ipfsAgent ipfs_agent.IpfsAgent) {
+	for true {
+		if rslt, err := n.serviceUsageRecordManager.ExportAllUsage(); err != nil {
+			fmt.Printf(fmt.Errorf("error occurred while exporting usage report: %+v", err).Error())
+		} else {
+			tmpReportFile, err := os.CreateTemp("", "sample")
+			defer os.Remove(tmpReportFile.Name())
+			if err != nil {
+				fmt.Printf(fmt.Errorf("error occurred while creating usage report tmp file: %+v", err).Error())
+			} else {
+				usageRecordsJsonByte, _ := json.Marshal(rslt)
+				_, err := tmpReportFile.Write(usageRecordsJsonByte)
+				if err != nil {
+					fmt.Printf(fmt.Errorf("error occurred while writing usage report data: %+v", err).Error())
+				} else {
+					ipfsAgent.PinFile(tmpReportFile.Name())
+				}
+			}
+		}
+		time.Sleep(time.Duration(uploadInterval) * time.Second)
+	}
+
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"apron.network/gateway-p2p/internal/ipfs_agent"
 	"context"
 	"flag"
 	"log"
@@ -53,6 +54,13 @@ func main() {
 
 	// Setup proxy request handler
 	go node.StartForwardService()
+
+	// Upload log file to IPFS
+	agent := ipfs_agent.PinataService{
+		APIKey:    "",
+		APISecret: "",
+	}
+	go node.StartUploadUsageReportTask(config.ReportInterval, &agent)
 
 	select {}
 }

@@ -21,7 +21,6 @@ func (n *Node) StartMgmtApiServer() {
 	serviceRouter.GET("/local", n.listLocalServiceHandler)
 	serviceRouter.GET("/remote", n.listRemoteServiceHandler)
 	serviceRouter.GET("/peers", n.listServicePeerHandler)
-	serviceRouter.GET("/report", n.allUsageReportHandler)
 
 	log.Printf("Management API Server: %s\n", n.Config.MgmtAddr)
 	fasthttp.ListenAndServe(n.Config.MgmtAddr, router.Handler)
@@ -116,18 +115,4 @@ func (n *Node) listRemoteServiceHandler(ctx *fasthttp.RequestCtx) {
 	respBody, err := json.Marshal(rslt)
 	internal.CheckError(err)
 	ctx.Write(respBody)
-}
-
-func (n *Node) allUsageReportHandler(ctx *fasthttp.RequestCtx) {
-	if rslt, err := n.serviceUsageRecordManager.ExportAllUsage(); err != nil {
-		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
-		ctx.SetBodyString(err.Error())
-	} else {
-		usageRecordsJsonByte, err := json.Marshal(rslt)
-		if err != nil {
-			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
-			ctx.SetBodyString(err.Error())
-		}
-		ctx.SetBody(usageRecordsJsonByte)
-	}
 }
