@@ -81,3 +81,18 @@ func (p *PinataService) PinFile(filepath string) (string, error) {
 
 	return "", fmt.Errorf("pinata pin file failure")
 }
+
+func (p *PinataService) PinContent(content []byte) (string, error) {
+
+	tmpfile, err := ioutil.TempFile("", "ipfs-agent-pinata-pinner-")
+	if err != nil {
+		return "", fmt.Errorf("pinata pin content create tempfile failure")
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write(content); err != nil {
+		return "", fmt.Errorf("pinata pin content write failure")
+	}
+
+	return p.PinFile(tmpfile.Name())
+}
