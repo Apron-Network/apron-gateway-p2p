@@ -28,31 +28,19 @@ type HttpbinResponse struct {
 }
 
 var (
-	ctx           = context.Background()
-	httpsProvider = map[string]*models.ApronServiceProvider{
+	ctx = context.Background()
+
+	httpProvider = map[string]*models.ApronServiceProvider{
 		"httpecho": {
-			Id:          "demo_httpecho",
-			Name:        "demo_httpecho",
-			Desc:        "demo httpecho server",
-			CreatedAt:   1625711065622,
-			UpdatedAt:   1625711065622,
-			ExtraDetail: "",
-			// BaseUrl:     StartDemoHttpbinServer(),
-			BaseUrl: "http://localhost:7490/anything?this=test",
+			BaseUrl: StartDemoHttpbinServer(),
 			Schema:  "http",
 		},
 	}
 
 	wsProvider = map[string]*models.ApronServiceProvider{
 		"echo": {
-			Id:          "ws_echo",
-			Name:        "ws echo",
-			Desc:        "echo ws server",
-			CreatedAt:   1625711065622,
-			UpdatedAt:   1625711065622,
-			ExtraDetail: "",
-			BaseUrl:     StartDemoWebsocketServer(),
-			Schema:      "ws",
+			BaseUrl: StartDemoWebsocketServer(),
+			Schema:  "ws",
 		},
 		"stream": {},
 	}
@@ -72,10 +60,13 @@ func TestHttpRequestForward(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	httpbinService := &models.ApronService{
-		Id:         clientNodes[0].Config.ForwardServiceAddr,
-		DomainName: "localhost",
+		Id:     "testdemohttpservice",
+		Name:   "testDemoHttpService",
+		Desc:   "A demo test http service",
+		Usage:  "Demo usage",
+		UserId: "0x1234567890",
 		Providers: []*models.ApronServiceProvider{
-			httpsProvider["httpecho"],
+			httpProvider["httpecho"],
 		},
 	}
 	RegisterService(bsNodes[0], httpbinService, false)
@@ -131,8 +122,11 @@ func TestWsEchoRequestForward(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	wsEchoService := &models.ApronService{
-		Id:         fmt.Sprintf("localhost%s", clientNodes[0].Config.ForwardServiceAddr),
-		DomainName: "localhost",
+		Id:     "testdemowsservice",
+		Name:   "testDemoWsService",
+		Desc:   "A demo test ws service",
+		Usage:  "Demo usage",
+		UserId: "0x1234567890",
 		Providers: []*models.ApronServiceProvider{
 			wsProvider["echo"],
 		},
@@ -186,19 +180,23 @@ func Test_RegisterLocalService(t *testing.T) {
 	// Add demo service. The service is registered as a service in bsNode[0],
 	// and the test client will send request to clientNode[0],
 	// the internal p2p network forwards the service to bsNode[0] and return the response.
-	serverStr := fmt.Sprintf("localhost%s", clientNode.Config.ForwardServiceAddr)
 	wsEchoService := &models.ApronService{
-		Id:         serverStr,
-		DomainName: "localhost",
+		Id:     "testdemowsservice",
+		Name:   "testDemoWsService",
+		Desc:   "A demo test ws service",
+		Usage:  "Demo usage",
+		UserId: "0x1234567890",
 		Providers: []*models.ApronServiceProvider{
 			wsProvider["echo"],
 		},
 	}
 
-	serverStr2 := fmt.Sprintf("localhost2%s", clientNode.Config.ForwardServiceAddr)
 	wsEchoService2 := &models.ApronService{
-		Id:         serverStr2,
-		DomainName: "localhost2",
+		Id:     "testdemowsservice2",
+		Name:   "testDemoWsService",
+		Desc:   "A demo test ws service",
+		Usage:  "Demo usage",
+		UserId: "0x1234567890",
 		Providers: []*models.ApronServiceProvider{
 			wsProvider["echo2"],
 		},

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"apron.network/gateway-p2p/internal/ipfs_agent"
 	"context"
 	"flag"
 	"log"
@@ -20,6 +21,8 @@ func main() {
 	flag.StringVar(&config.ForwardServiceAddr, "service-addr", ":8080", "Service addr used for proxy")
 	flag.StringVar(&config.MgmtAddr, "mgmt-addr", ":8082", "API base for management")
 	flag.StringVar(&config.Rendezvous, "rendezvous", "ApronServiceNetwork", "Rendezvous to build DHT network")
+	flag.IntVar(&config.SecretKey, "secret-key", 0, "Secret key to specified host id")
+	flag.IntVar(&config.ReportInterval, "report-interval", 5, "Upload usage report interval second")
 	flag.Parse()
 
 	node, err := trans_network.NewNode(ctx, config)
@@ -51,6 +54,13 @@ func main() {
 
 	// Setup proxy request handler
 	go node.StartForwardService()
+
+	// Upload log file to IPFS
+	agent := ipfs_agent.PinataService{
+		APIKey:    "",
+		APISecret: "",
+	}
+	go node.StartUploadUsageReportTask(config.ReportInterval, &agent)
 
 	select {}
 }

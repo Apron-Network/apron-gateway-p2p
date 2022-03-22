@@ -6,4 +6,8 @@ type NodeConfig struct {
 	ForwardServiceAddr string
 	MgmtAddr           string
 	Rendezvous         string
+	SecretKey          int
+	PinataAPIKey       string
+	PinataSecretKey    string
+	ReportInterval     int
 }
