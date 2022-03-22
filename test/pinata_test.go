@@ -19,7 +19,7 @@ func init() {
 
 func skip(t *testing.T) {
 	if APIKEY == "" || APISECRET == "" {
-		t.Skip("Skipping testing when without set api key and api secret")
+		t.Skip("Skipping testing when without set PINATA_API_KEY and PINATA_SECRET_API_KEY enviornment variables")
 	}
 }
 
