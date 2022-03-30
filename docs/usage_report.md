@@ -2,25 +2,21 @@
 
 ## Record usage
 
-### User
-
-* Service usage data of each user will be collected at ClientSideGateway node.
+* Usage data will be collected in ClientSideGateway node.
+* The data will be collected while user connecting to node and request to service
 * The collected data contains those data
   * User ID
   * Service ID
   * Connect count
   * Upload size
   * Download size
-
-### Service provider
-
-* Service usage data of each service will be collected at ServiceSideGateway node. 
-* The data should have similar format with collected user data
+* The recorded data is saved as hash table, the key is user key, and the value is the collected data.
 
 ## Upload
 
 * A separated loop process/thread is running to summarize report data
-* All the data on the node, includes user data (ClientSideGateway) and service data (ServiceSideGateway) will be collected
+* All the data on the node will be collected and uploaded
+* (Opt) The data can be encrypted with pre-configured key before upload to improve security
 * The summarized report will be uploaded to IPFS node
 * Then the IPFS hash and some metadata will be submitted to contract and save on chain
   * The metadata should contain node id, time range 
@@ -30,6 +26,9 @@
 ## Generate Report
 
 * Report generator talk with contract to get hash list
-* The request sent to contract should contain query conditions
+  * The request sent to contract should contain query conditions
 * Contract returns IPFS hash list
 * Generator get files from IPFS and extract needed information
+  * Parse the files downloaded
+  * Filter out the data in specified time range
+  * Load files content and generate user report data and service statistical data
