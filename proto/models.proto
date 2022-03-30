@@ -126,3 +126,20 @@ message ApronServiceData {
   string request_id = 2;
   bytes raw_data = 10;
 }
+
+message ApronUsageRecord {
+  string user_key = 1;
+  string service_id = 2;
+  int64 start_ts = 3;
+  int64 end_ts = 4;
+
+  uint64 access_count = 10;
+  uint64 upload_traffic = 11;
+  uint64 download_traffic = 12;
+}
+
+// NodeReport contains all usage records recorded on the node
+message NodeReport {
+  string node_id = 1;
+  repeated ApronUsageRecord records = 10;
+}
