@@ -23,6 +23,8 @@ func main() {
 	flag.StringVar(&config.Rendezvous, "rendezvous", "ApronServiceNetwork", "Rendezvous to build DHT network")
 	flag.IntVar(&config.SecretKey, "secret-key", 0, "Secret key to specified host id")
 	flag.IntVar(&config.ReportInterval, "report-interval", 15, "Upload usage report interval second")
+	apiKey := flag.String("ipfs-key", "", "Api key for IPFS agent")
+	apiSecret := flag.String("ipfs-secret", "", "Api secret for IPFS agent")
 	flag.Parse()
 
 	node, err := trans_network.NewNode(ctx, config)
@@ -58,8 +60,8 @@ func main() {
 	// Upload log file to IPFS
 	// TODO: Replace with real IPFS agent
 	agent := ipfs_agent.LocalFileAgent{
-		APIKey:    "apron",
-		APISecret: "testdata",
+		APIKey:    *apiKey,
+		APISecret: *apiSecret,
 	}
 	go node.StartUploadUsageReportTask(config.ReportInterval, &agent)
 
