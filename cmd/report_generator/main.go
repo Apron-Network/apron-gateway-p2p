@@ -39,7 +39,10 @@ func main() {
 		}
 
 		if len(report.Records) != 0 {
-			fmt.Printf("Node id: %s\nRecords: %+v\n", report.NodeId, report.Records)
+			fmt.Printf("Node id: %s\n", report.NodeId)
+			for _, r := range report.Records {
+				fmt.Printf("  Record: %+v\n", r)
+			}
 		}
 
 		return nil
