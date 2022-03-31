@@ -1,6 +1,7 @@
 package models
 
 import (
+	"fmt"
 	"google.golang.org/protobuf/proto"
 	"sync"
 	"time"
@@ -46,12 +47,15 @@ func (m *UsageRecordManager) ExportAllUsage(nodeId string) (NodeReport, error) {
 	result := NodeReport{
 		NodeId: nodeId,
 	}
-	for recordKey, record := range m.records {
+	for recordKey, lock := range m.locks {
 		func() {
-			m.locks[recordKey].Lock()
-			defer m.locks[recordKey].Unlock()
-			result.Records = append(result.Records, proto.Clone(record).(*ApronUsageRecord))
+			lock.Lock()
+			defer lock.Unlock()
+			result.Records = append(result.Records, proto.Clone(m.records[recordKey]).(*ApronUsageRecord))
+			delete(m.records, recordKey)
 		}()
 	}
+	fmt.Printf("Rslt: %+v\n", result)
+	fmt.Printf("records: %+v\n", m.records)
 	return result, nil
 }

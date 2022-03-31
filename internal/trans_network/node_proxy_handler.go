@@ -301,10 +301,19 @@ func (n *Node) StartForwardService() {
 
 func (n *Node) StartUploadUsageReportTask(uploadInterval int, ipfsAgent ipfs_agent.IpfsAgent) {
 	for true {
-		if rslt, err := n.serviceUsageRecordManager.ExportAllUsage(n.selfID.String()); err != nil {
+		if nodeReport, err := n.serviceUsageRecordManager.ExportAllUsage(n.selfID.String()); err != nil {
 			fmt.Printf(fmt.Errorf("error occurred while exporting usage report: %+v", err).Error())
 		} else {
-			ipfsAgent.PinContent()
+			reportBytes, err := proto.Marshal(&nodeReport)
+			if err != nil {
+				// TODO: replace with appropriate handler
+				panic(err)
+			}
+			fileHash, err := ipfsAgent.PinContent(reportBytes)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("Filehash: %s\n", fileHash)
 		}
 		time.Sleep(time.Duration(uploadInterval) * time.Second)
 	}
