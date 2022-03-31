@@ -1,6 +1,6 @@
 all: gen build
 
-build: gw
+build: gw report_generator
 
 SOURCES = $(wildcard internal/*/*.go internal/*.go cmd/*/*.go)
 
@@ -10,6 +10,9 @@ gen: proto/models.proto
 
 gw: $(SOURCES)
 	go build ./cmd/gateway
+
+report_generator: $(SOURCES)
+	go build ./cmd/report_generator
 
 test:
 	go test -v -cover ./...
