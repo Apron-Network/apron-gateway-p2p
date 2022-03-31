@@ -223,6 +223,7 @@ func (n *Node) serveHttpRequest(ctx *fasthttp.RequestCtx, streamToServiceGW netw
 // The function first parses request sent from client to RequestDetail struct, then build ApronServiceRequest based
 // on the request data.
 func (n *Node) StartForwardService() {
+	log.Printf("Forward API Server: %s\n", n.Config.ForwardServiceAddr)
 	fasthttp.ListenAndServe(n.Config.ForwardServiceAddr, func(ctx *fasthttp.RequestCtx) {
 		// Parse request URL and split service
 		var rawReq bytes.Buffer
@@ -304,16 +305,20 @@ func (n *Node) StartUploadUsageReportTask(uploadInterval int, ipfsAgent ipfs_age
 		if nodeReport, err := n.serviceUsageRecordManager.ExportAllUsage(n.selfID.String()); err != nil {
 			fmt.Printf(fmt.Errorf("error occurred while exporting usage report: %+v", err).Error())
 		} else {
-			reportBytes, err := proto.Marshal(&nodeReport)
-			if err != nil {
-				// TODO: replace with appropriate handler
-				panic(err)
+			if len(nodeReport.Records) != 0 {
+				// Only export records has real usage data
+				reportBytes, err := proto.Marshal(&nodeReport)
+				if err != nil {
+					// TODO: replace with appropriate handler
+					panic(err)
+				}
+				fileHash, err := ipfsAgent.PinContent(reportBytes)
+				if err != nil {
+					log.Fatal(err)
+				}
+				// TODO: Upload the file hash to chain
+				fmt.Printf("Filehash: %s\n", fileHash)
 			}
-			fileHash, err := ipfsAgent.PinContent(reportBytes)
-			if err != nil {
-				log.Fatal(err)
-			}
-			fmt.Printf("Filehash: %s\n", fileHash)
 		}
 		time.Sleep(time.Duration(uploadInterval) * time.Second)
 	}
