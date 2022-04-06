@@ -69,8 +69,8 @@ func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
 		return nil, err
 	}
 
-	aggrAccessRecordManager := models.UsageRecordManager{}
-	aggrAccessRecordManager.Init()
+	usageRecordManager := models.UsageRecordManager{}
+	usageRecordManager.Init()
 
 	return &Node{
 		Host:                      &h,
@@ -83,7 +83,7 @@ func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
 		clientWsConns:             map[string]*websocket.Conn{},
 		serviceWsConns:            map[string]*websocket.Conn{},
 		clientHttpDataChan:        map[string]chan []byte{},
-		serviceUsageRecordManager: aggrAccessRecordManager,
+		serviceUsageRecordManager: usageRecordManager,
 	}, nil
 }
 

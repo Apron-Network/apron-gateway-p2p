@@ -17,8 +17,8 @@ func (m *UsageRecordManager) Init() {
 }
 
 func (m *UsageRecordManager) RecordUsageFromProxyRequest(proxyReq *ApronServiceRequest, reqDetail *RequestDetail) {
-	userKey := string(reqDetail.UserKey)
-	recordKey := GenerateUsageRecordKey(proxyReq.ServiceId, userKey)
+	userKey, serviceId := ExtractServiceInfoFromRequestID(proxyReq.RequestId)
+	recordKey := GenerateUsageRecordKey(serviceId, userKey)
 	rcd, ok := m.records[recordKey]
 	if ok {
 		m.locks[recordKey].Lock()
@@ -31,12 +31,27 @@ func (m *UsageRecordManager) RecordUsageFromProxyRequest(proxyReq *ApronServiceR
 
 		m.records[recordKey] = &ApronUsageRecord{
 			UserKey:         userKey,
-			ServiceId:       proxyReq.ServiceId,
+			ServiceId:       serviceId,
 			StartTs:         time.Now().UnixMilli(),
 			AccessCount:     1,
 			UploadTraffic:   uint64(len(reqDetail.RequestBody)),
 			DownloadTraffic: 0,
 		}
+	}
+}
+
+func (m *UsageRecordManager) RecordUsageFromProxyData(proxyData *ApronServiceData, isClientToService bool) {
+	userKey, serviceId := ExtractServiceInfoFromRequestID(proxyData.RequestId)
+	recordKey := GenerateUsageRecordKey(serviceId, userKey)
+
+	// In this function, the record should have already created in records, so access it directly
+	rcd, _ := m.records[recordKey]
+	m.locks[recordKey].Lock()
+	defer m.locks[recordKey].Unlock()
+	if isClientToService {
+		rcd.DoRecord(0, uint64(len(proxyData.RawData)), 0)
+	} else {
+		rcd.DoRecord(0, 0, uint64(len(proxyData.RawData)))
 	}
 }
 

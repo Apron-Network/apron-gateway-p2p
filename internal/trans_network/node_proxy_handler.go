@@ -123,10 +123,12 @@ func (n *Node) ProxyWsDataHandler(s network.Stream) {
 				log.Printf("ProxyDataFromClientSideHandler: Send data to service\n")
 				err = n.serviceWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
 				internal.CheckError(err)
+				n.serviceUsageRecordManager.RecordUsageFromProxyData(proxyData, true)
 			} else if s.Protocol() == protocol.ID(ProxyWsDataFromServiceSide) {
 				log.Printf("ProxyDataFromServiceHandler: Send data to client\n")
 				err = n.clientWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
 				internal.CheckError(err)
+				n.serviceUsageRecordManager.RecordUsageFromProxyData(proxyData, false)
 			} else {
 				panic(errors.New(fmt.Sprintf("wrong protocol: %s", s.Protocol())))
 			}
@@ -146,6 +148,7 @@ func (n *Node) ProxyHttpRespHandler(s network.Stream) {
 			internal.CheckError(err)
 
 			log.Printf("ProxyHttpRespHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
+			n.serviceUsageRecordManager.RecordUsageFromProxyData(proxyData, false)
 
 			n.clientHttpDataChan[proxyData.RequestId] <- proxyData.RawData
 		}
@@ -264,7 +267,8 @@ func (n *Node) StartForwardService() {
 			return
 		}
 
-		requestId := uuid.New().String()
+		// Put userKey in requestId to help usage report record
+		requestId := fmt.Sprintf("%s.%s.%s", clientReqDetail.UserKey, service.GetId(), uuid.New().String())
 
 		req := &models.ApronServiceRequest{
 			ServiceId:   service.GetId(),
