@@ -143,3 +143,7 @@ message NodeReport {
   string node_id = 1;
   repeated ApronUsageRecord records = 10;
 }
+
+message ApronSocketInitRequest {
+  string service_id = 1;
+}

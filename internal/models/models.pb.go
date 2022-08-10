@@ -731,6 +731,53 @@ func (x *NodeReport) GetRecords() []*ApronUsageRecord {
 	return nil
 }
 
+type ApronSocketInitRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	ServiceId string `protobuf:"bytes,1,opt,name=service_id,json=serviceId,proto3" json:"service_id,omitempty"`
+}
+
+func (x *ApronSocketInitRequest) Reset() {
+	*x = ApronSocketInitRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_models_proto_msgTypes[9]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ApronSocketInitRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApronSocketInitRequest) ProtoMessage() {}
+
+func (x *ApronSocketInitRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_models_proto_msgTypes[9]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApronSocketInitRequest.ProtoReflect.Descriptor instead.
+func (*ApronSocketInitRequest) Descriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ApronSocketInitRequest) GetServiceId() string {
+	if x != nil {
+		return x.ServiceId
+	}
+	return ""
+}
+
 var File_models_proto protoreflect.FileDescriptor
 
 var file_models_proto_rawDesc = []byte{
@@ -821,10 +868,13 @@ var file_models_proto_rawDesc = []byte{
 	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x6e, 0x6f, 0x64, 0x65, 0x49, 0x64, 0x12,
 	0x2b, 0x0a, 0x07, 0x72, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x73, 0x18, 0x0a, 0x20, 0x03, 0x28, 0x0b,
 	0x32, 0x11, 0x2e, 0x41, 0x70, 0x72, 0x6f, 0x6e, 0x55, 0x73, 0x61, 0x67, 0x65, 0x52, 0x65, 0x63,
-	0x6f, 0x72, 0x64, 0x52, 0x07, 0x72, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x73, 0x42, 0x1e, 0x5a, 0x1c,
-	0x61, 0x70, 0x72, 0x6f, 0x6e, 0x2e, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x2f, 0x67, 0x61,
-	0x74, 0x65, 0x77, 0x61, 0x79, 0x2f, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x73, 0x62, 0x06, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x33,
+	0x6f, 0x72, 0x64, 0x52, 0x07, 0x72, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x73, 0x22, 0x37, 0x0a, 0x16,
+	0x41, 0x70, 0x72, 0x6f, 0x6e, 0x53, 0x6f, 0x63, 0x6b, 0x65, 0x74, 0x49, 0x6e, 0x69, 0x74, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1d, 0x0a, 0x0a, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63,
+	0x65, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x73, 0x65, 0x72, 0x76,
+	0x69, 0x63, 0x65, 0x49, 0x64, 0x42, 0x1e, 0x5a, 0x1c, 0x61, 0x70, 0x72, 0x6f, 0x6e, 0x2e, 0x6e,
+	0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x2f, 0x67, 0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x2f, 0x6d,
+	0x6f, 0x64, 0x65, 0x6c, 0x73, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -839,17 +889,18 @@ func file_models_proto_rawDescGZIP() []byte {
 	return file_models_proto_rawDescData
 }
 
-var file_models_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_models_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_models_proto_goTypes = []interface{}{
-	(*ApronApiKey)(nil),          // 0: ApronApiKey
-	(*ApronServiceProvider)(nil), // 1: ApronServiceProvider
-	(*ApronService)(nil),         // 2: ApronService
-	(*ApronUser)(nil),            // 3: ApronUser
-	(*AccessLog)(nil),            // 4: AccessLog
-	(*ApronServiceRequest)(nil),  // 5: ApronServiceRequest
-	(*ApronServiceData)(nil),     // 6: ApronServiceData
-	(*ApronUsageRecord)(nil),     // 7: ApronUsageRecord
-	(*NodeReport)(nil),           // 8: NodeReport
+	(*ApronApiKey)(nil),            // 0: ApronApiKey
+	(*ApronServiceProvider)(nil),   // 1: ApronServiceProvider
+	(*ApronService)(nil),           // 2: ApronService
+	(*ApronUser)(nil),              // 3: ApronUser
+	(*AccessLog)(nil),              // 4: AccessLog
+	(*ApronServiceRequest)(nil),    // 5: ApronServiceRequest
+	(*ApronServiceData)(nil),       // 6: ApronServiceData
+	(*ApronUsageRecord)(nil),       // 7: ApronUsageRecord
+	(*NodeReport)(nil),             // 8: NodeReport
+	(*ApronSocketInitRequest)(nil), // 9: ApronSocketInitRequest
 }
 var file_models_proto_depIdxs = []int32{
 	1, // 0: ApronService.providers:type_name -> ApronServiceProvider
@@ -975,6 +1026,18 @@ func file_models_proto_init() {
 				return nil
 			}
 		}
+		file_models_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ApronSocketInitRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -982,7 +1045,7 @@ func file_models_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_models_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
