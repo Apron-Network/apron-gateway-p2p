@@ -22,7 +22,9 @@ func main() {
 	flag.StringVar(&config.MgmtAddr, "mgmt-addr", ":8082", "API base for management")
 	flag.StringVar(&config.Rendezvous, "rendezvous", "ApronServiceNetwork", "Rendezvous to build DHT network")
 	flag.IntVar(&config.SecretKey, "secret-key", 0, "Secret key to specified host id")
-	flag.IntVar(&config.ReportInterval, "report-interval", 5, "Upload usage report interval second")
+	flag.IntVar(&config.ReportInterval, "report-interval", 15, "Upload usage report interval second")
+	apiKey := flag.String("ipfs-key", "", "Api key for IPFS agent")
+	apiSecret := flag.String("ipfs-secret", "", "Api secret for IPFS agent")
 	flag.Parse()
 
 	node, err := trans_network.NewNode(ctx, config)
@@ -56,9 +58,10 @@ func main() {
 	go node.StartForwardService()
 
 	// Upload log file to IPFS
-	agent := ipfs_agent.PinataService{
-		APIKey:    "",
-		APISecret: "",
+	// TODO: Replace with real IPFS agent
+	agent := ipfs_agent.LocalFileAgent{
+		APIKey:    *apiKey,
+		APISecret: *apiSecret,
 	}
 	go node.StartUploadUsageReportTask(config.ReportInterval, &agent)
 

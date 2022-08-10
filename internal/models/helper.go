@@ -6,8 +6,10 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/valyala/fasthttp"
+	"log"
 	"net/url"
 	"path"
+	"strings"
 )
 
 // RecoverClientRequest recover request serialized from client side to fasthttp request
@@ -40,4 +42,12 @@ func (svrReq *ApronServiceRequest) BuildHttpRequestToService(reqDetail *RequestD
 	})
 
 	return httpReq
+}
+
+func ExtractServiceInfoFromRequestID(requestId string) (string, string) {
+	rslt := strings.SplitN(requestId, ".", 3)
+	if len(rslt) != 3 {
+		log.Panicf(fmt.Errorf("invalid format of request id (%s), please contract admin", requestId).Error())
+	}
+	return rslt[0], rslt[1]
 }

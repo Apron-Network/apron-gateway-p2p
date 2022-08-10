@@ -6,7 +6,6 @@ import (
 	"apron.network/gateway-p2p/internal/models"
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/fasthttp/websocket"
@@ -17,7 +16,6 @@ import (
 	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
 	"log"
-	"os"
 	"time"
 )
 
@@ -125,10 +123,12 @@ func (n *Node) ProxyWsDataHandler(s network.Stream) {
 				log.Printf("ProxyDataFromClientSideHandler: Send data to service\n")
 				err = n.serviceWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
 				internal.CheckError(err)
+				n.serviceUsageRecordManager.RecordUsageFromProxyData(proxyData, true)
 			} else if s.Protocol() == protocol.ID(ProxyWsDataFromServiceSide) {
 				log.Printf("ProxyDataFromServiceHandler: Send data to client\n")
 				err = n.clientWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
 				internal.CheckError(err)
+				n.serviceUsageRecordManager.RecordUsageFromProxyData(proxyData, false)
 			} else {
 				panic(errors.New(fmt.Sprintf("wrong protocol: %s", s.Protocol())))
 			}
@@ -148,6 +148,7 @@ func (n *Node) ProxyHttpRespHandler(s network.Stream) {
 			internal.CheckError(err)
 
 			log.Printf("ProxyHttpRespHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
+			n.serviceUsageRecordManager.RecordUsageFromProxyData(proxyData, false)
 
 			n.clientHttpDataChan[proxyData.RequestId] <- proxyData.RawData
 		}
@@ -225,6 +226,7 @@ func (n *Node) serveHttpRequest(ctx *fasthttp.RequestCtx, streamToServiceGW netw
 // The function first parses request sent from client to RequestDetail struct, then build ApronServiceRequest based
 // on the request data.
 func (n *Node) StartForwardService() {
+	log.Printf("Forward API Server: %s\n", n.Config.ForwardServiceAddr)
 	fasthttp.ListenAndServe(n.Config.ForwardServiceAddr, func(ctx *fasthttp.RequestCtx) {
 		// Parse request URL and split service
 		var rawReq bytes.Buffer
@@ -265,7 +267,8 @@ func (n *Node) StartForwardService() {
 			return
 		}
 
-		requestId := uuid.New().String()
+		// Put userKey in requestId to help usage report record
+		requestId := fmt.Sprintf("%s.%s.%s", clientReqDetail.UserKey, service.GetId(), uuid.New().String())
 
 		req := &models.ApronServiceRequest{
 			ServiceId:   service.GetId(),
@@ -303,21 +306,22 @@ func (n *Node) StartForwardService() {
 
 func (n *Node) StartUploadUsageReportTask(uploadInterval int, ipfsAgent ipfs_agent.IpfsAgent) {
 	for true {
-		if rslt, err := n.serviceUsageRecordManager.ExportAllUsage(); err != nil {
+		if nodeReport, err := n.serviceUsageRecordManager.ExportAllUsage(n.selfID.String()); err != nil {
 			fmt.Printf(fmt.Errorf("error occurred while exporting usage report: %+v", err).Error())
 		} else {
-			tmpReportFile, err := os.CreateTemp("", "sample")
-			defer os.Remove(tmpReportFile.Name())
-			if err != nil {
-				fmt.Printf(fmt.Errorf("error occurred while creating usage report tmp file: %+v", err).Error())
-			} else {
-				usageRecordsJsonByte, _ := json.Marshal(rslt)
-				_, err := tmpReportFile.Write(usageRecordsJsonByte)
+			if len(nodeReport.Records) != 0 {
+				// Only export records has real usage data
+				reportBytes, err := proto.Marshal(&nodeReport)
 				if err != nil {
-					fmt.Printf(fmt.Errorf("error occurred while writing usage report data: %+v", err).Error())
-				} else {
-					ipfsAgent.PinFile(tmpReportFile.Name())
+					// TODO: replace with appropriate handler
+					panic(err)
 				}
+				fileHash, err := ipfsAgent.PinContent(reportBytes)
+				if err != nil {
+					log.Fatal(err)
+				}
+				// TODO: Upload the file hash to chain
+				fmt.Printf("Filehash: %s\n", fileHash)
 			}
 		}
 		time.Sleep(time.Duration(uploadInterval) * time.Second)
