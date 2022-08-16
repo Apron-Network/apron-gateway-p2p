@@ -4,8 +4,10 @@ import (
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/ipfs_agent"
 	"apron.network/gateway-p2p/internal/models"
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/fasthttp/websocket"
@@ -16,6 +18,7 @@ import (
 	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
 	"log"
+	"net"
 	"time"
 )
 
@@ -222,7 +225,7 @@ func (n *Node) serveHttpRequest(ctx *fasthttp.RequestCtx, streamToServiceGW netw
 	}
 }
 
-// StartForwardService used to forward service request from client to correct gateway that registered the service.
+// StartForwardService used to forward http service request from client to correct gateway that registered the service.
 // The function first parses request sent from client to RequestDetail struct, then build ApronServiceRequest based
 // on the request data.
 func (n *Node) StartForwardService() {
@@ -327,4 +330,73 @@ func (n *Node) StartUploadUsageReportTask(uploadInterval int, ipfsAgent ipfs_age
 		time.Sleep(time.Duration(uploadInterval) * time.Second)
 	}
 
+}
+
+// StartSocketForwardService used to forward socket data from client to correct gateway.
+// Forwarding socket data requires sending auth message first, which contains auth message and connection detail,
+func (n *Node) StartSocketForwardService() {
+	log.Printf("Socket Forward Server: %s\n", n.Config.SocketForwardServiceAddr)
+	listen, err := net.Listen("tcp", n.Config.SocketForwardServiceAddr)
+	internal.CheckError(err)
+	for {
+		conn, err := listen.Accept()
+
+		go func(conn net.Conn) {
+			internal.CheckError(err)
+			defer conn.Close()
+
+			r := bufio.NewReader(conn)
+
+			var msgLen uint64
+			err = binary.Read(r, binary.BigEndian, &msgLen)
+			internal.CheckError(err)
+
+			// Read init request to get service detail
+			initRequest := models.ApronSocketInitRequest{}
+			log.Printf("Request size: %d\n", msgLen)
+			initRequestBytes := make([]byte, msgLen)
+
+			// Parse init request
+			readSize, err := r.Read(initRequestBytes)
+			internal.CheckError(err)
+			log.Printf("Read size: %d\n", readSize)
+
+			err = proto.Unmarshal(initRequestBytes, &initRequest)
+			internal.CheckError(err)
+
+			service, found := n.services[initRequest.ServiceId]
+			if !found {
+				n.mutex.Unlock()
+				// Service is in the peer mapping but not in services list, internal error
+				conn.Write([]byte("ClientSideGateway: Service data missing, contract help"))
+				return
+			}
+			n.mutex.Unlock()
+
+			if len(service.Providers) < 1 {
+				conn.Write([]byte("ClientSideGateway: Service data error, contract help"))
+				return
+			}
+
+			log.Printf("Service detail: %#v\n", service)
+
+			// Find service connection detail, build data package and send to correct gateway
+
+			// Build request ID
+			requestId := fmt.Sprintf("%s.%s.%s", initRequest.UserId, service.GetId(), uuid.New().String())
+
+			// Create ApronServiceRequest struct, for sendint to remote stream
+			req := &models.ApronSocketServiceRequest{
+				ServiceId: service.GetId(),
+				RequestId: requestId,
+				PeerId:    (*n.Host).ID().String(),
+			}
+
+			// Register the requestId to current node
+			msgCh := make(chan []byte)
+			n.requestIdChanMapping[requestId] = msgCh
+
+			conn.Write([]byte(initRequest.ServiceId))
+		}(conn)
+	}
 }

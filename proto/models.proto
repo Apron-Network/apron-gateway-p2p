@@ -122,6 +122,7 @@ message ApronServiceRequest {
   bytes raw_request = 10;
 }
 
+
 message ApronServiceData {
   string request_id = 2;
   bytes raw_data = 10;
@@ -144,6 +145,18 @@ message NodeReport {
   repeated ApronUsageRecord records = 10;
 }
 
+// ApronSocketInitRequest is sent from client side to ClientSideGateway, which contains service_id the client required, and user_id for charging.
+// After receiving this request, ClientSideGateway will try to connect with ServiceSideGateway from its services list.
 message ApronSocketInitRequest {
   string service_id = 1;
+  string user_id = 2;
+}
+
+// Message indicates this request is used for socket connection
+// This message is similar with ApronServiceRequest, creating new message can minimize side effect to existing logic
+// This request can only indicate ServiceSideGateway to connect to service, no additional data can be passed in this request
+message ApronSocketServiceRequest {
+  string service_id = 1;
+  string request_id = 2;
+  string peer_id = 3;
 }
