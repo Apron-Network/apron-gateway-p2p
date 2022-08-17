@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"log"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -47,6 +48,7 @@ type Node struct {
 
 	clientWsConns      map[string]*websocket.Conn
 	serviceWsConns     map[string]*websocket.Conn
+	clientSocketConns  map[string]*net.Conn
 	clientHttpDataChan map[string]chan []byte
 
 	serviceUsageRecordManager models.UsageRecordManager
