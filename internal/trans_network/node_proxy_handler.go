@@ -161,7 +161,33 @@ func (n *Node) ProxySocketInitReqHandler(s network.Stream) {
 
 // ProxySocketDataHandler will be used to process socket data from client or service side
 func (n *Node) ProxySocketDataHandler(s network.Stream) {
+	dataCh := make(chan []byte)
+	go ReadBytesViaStream(s, dataCh)
 
+	for {
+		select {
+		case proxyDataBytes := <-dataCh:
+			proxyData := &models.ApronServiceData{}
+			err := proto.Unmarshal(proxyDataBytes, proxyData)
+			internal.CheckError(err)
+
+			log.Printf("ProxyWsDataHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
+
+			if s.Protocol() == protocol.ID(ProxySocketDataFromClientSide) {
+				//log.Printf("ProxyDataFromClientSideHandler: Send data to service\n")
+				//err = n.serviceWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
+				//internal.CheckError(err)
+				//n.serviceUsageRecordManager.RecordUsageFromProxyData(proxyData, true)
+			} else if s.Protocol() == protocol.ID(ProxySocketDataFromServiceSide) {
+				//log.Printf("ProxyDataFromServiceHandler: Send data to client\n")
+				//err = n.clientWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
+				//internal.CheckError(err)
+				//n.serviceUsageRecordManager.RecordUsageFromProxyData(proxyData, false)
+			} else {
+				panic(errors.New(fmt.Sprintf("wrong protocol: %s", s.Protocol())))
+			}
+		}
+	}
 }
 
 func (n *Node) SetProxyStreamHandlers() {

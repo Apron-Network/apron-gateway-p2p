@@ -82,7 +82,7 @@ func (n *Node) StartSocketForwardService() {
 			msgCh := make(chan []byte)
 			n.requestIdChanMapping[requestId] = msgCh
 
-			s, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(ProxySocketInitReq))
+			initSocketConnStream, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(ProxySocketInitReq))
 			if err != nil {
 				log.Printf("forward service request err: %+v\n", err)
 				return
@@ -91,11 +91,38 @@ func (n *Node) StartSocketForwardService() {
 			// Build request package with passed in request
 			reqBytes, err := proto.Marshal(req)
 			internal.CheckError(err)
-			WriteBytesViaStream(s, reqBytes)
+			WriteBytesViaStream(initSocketConnStream, reqBytes)
 
+			clientSocketDataStream, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(ProxySocketDataFromClientSide))
+			if err != nil {
+				log.Printf("forward service request err: %+v\n", err)
+				return
+			}
+
+			// Save client to CSGW connection in node, which will be used in stream handler function
 			n.clientSocketConns[requestId] = &conn
 
-			// TODO: New coroutine to read data from conn
+			clientDataReader := bufio.NewReader(conn)
+			clientDataBuf := make([]byte, 4096)
+
+			go func() {
+				for {
+					msgSize, err := clientDataReader.Read(clientDataBuf)
+					internal.CheckError(err)
+
+					log.Printf("ClientSideGateway: Received %d byte message from client: %q\n", msgSize, clientDataBuf)
+
+					forwardData := &models.ApronServiceData{
+						RequestId: req.RequestId,
+						RawData:   clientDataBuf,
+					}
+
+					forwardDataBytes, err := proto.Marshal(forwardData)
+					internal.CheckError(err)
+					WriteBytesViaStream(clientSocketDataStream, forwardDataBytes)
+					log.Println("ClientSideGateway: socket data written to stream, wait for next client ws msg")
+				}
+			}()
 
 			// Infinity loop to keep the connection
 			select {}
