@@ -8,7 +8,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	"google.golang.org/protobuf/proto"
 	"log"
@@ -47,6 +46,14 @@ func (n *Node) StartSocketForwardService() {
 			err = proto.Unmarshal(initRequestBytes, &initRequest)
 			internal.CheckError(err)
 
+			n.mutex.Lock()
+			servicePeerId, found := n.servicePeerMapping[initRequest.ServiceId]
+			if !found {
+				n.mutex.Unlock()
+				conn.Write([]byte("ClientSideGateway: Service not found"))
+				return
+			}
+
 			service, found := n.services[initRequest.ServiceId]
 			if !found {
 				n.mutex.Unlock()
@@ -75,16 +82,13 @@ func (n *Node) StartSocketForwardService() {
 				PeerId:    (*n.Host).ID().String(),
 			}
 
-			peerId, err := peer.Decode(req.PeerId)
-			internal.CheckError(err)
-
 			// Register the requestId to current node
 			msgCh := make(chan []byte)
 			n.requestIdChanMapping[requestId] = msgCh
 
-			initSocketConnStream, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(ProxySocketInitReq))
+			initSocketConnStream, err := (*n.Host).NewStream(context.Background(), servicePeerId, protocol.ID(ProxySocketInitReq))
 			if err != nil {
-				log.Printf("forward service request err: %+v\n", err)
+				log.Printf("forward service init request err: %+v\n", err)
 				return
 			}
 
@@ -93,9 +97,9 @@ func (n *Node) StartSocketForwardService() {
 			internal.CheckError(err)
 			WriteBytesViaStream(initSocketConnStream, reqBytes)
 
-			clientSocketDataStream, err := (*n.Host).NewStream(context.Background(), peerId, protocol.ID(ProxySocketDataFromClientSide))
+			clientSocketDataStream, err := (*n.Host).NewStream(context.Background(), servicePeerId, protocol.ID(ProxySocketDataFromClientSide))
 			if err != nil {
-				log.Printf("forward service request err: %+v\n", err)
+				log.Printf("forward service data request err: %+v\n", err)
 				return
 			}
 
