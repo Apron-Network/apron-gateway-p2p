@@ -156,6 +156,26 @@ func (n *Node) ProxyHttpRespHandler(s network.Stream) {
 
 // ProxySocketInitReqHandler will be used to init socket connection to service
 func (n *Node) ProxySocketInitReqHandler(s network.Stream) {
+	dataCh := make(chan []byte)
+	go ReadBytesViaStream(s, dataCh)
+
+	select {
+	case proxyReqBytes := <-dataCh:
+		socketInitReq := &models.ApronSocketInitRequest{}
+		err := proto.Unmarshal(proxyReqBytes, socketInitReq)
+		internal.CheckError(err)
+		log.Printf("Read init socket request from stream: %s\n", socketInitReq)
+
+		peerId, err := peer.Decode(socketInitReq.PeerId)
+		internal.CheckError(err)
+
+		log.Printf("PeerID: %+v\n", peerId)
+
+		// Get service detail from local services list and fill missing fields of request
+		serviceDetail := n.services[socketInitReq.ServiceId]
+		log.Printf("Service detail: %#v\n", serviceDetail)
+
+	}
 
 }
 
@@ -171,15 +191,15 @@ func (n *Node) ProxySocketDataHandler(s network.Stream) {
 			err := proto.Unmarshal(proxyDataBytes, proxyData)
 			internal.CheckError(err)
 
-			log.Printf("ProxyWsDataHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
+			log.Printf("ProxySocketDataHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
 
 			if s.Protocol() == protocol.ID(ProxySocketDataFromClientSide) {
-				//log.Printf("ProxyDataFromClientSideHandler: Send data to service\n")
+				log.Printf("ProxyDataFromClientSideHandler: Send data to service\n")
 				//err = n.serviceWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
 				//internal.CheckError(err)
 				//n.serviceUsageRecordManager.RecordUsageFromProxyData(proxyData, true)
 			} else if s.Protocol() == protocol.ID(ProxySocketDataFromServiceSide) {
-				//log.Printf("ProxyDataFromServiceHandler: Send data to client\n")
+				log.Printf("ProxyDataFromServiceHandler: Send data to client\n")
 				//err = n.clientWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
 				//internal.CheckError(err)
 				//n.serviceUsageRecordManager.RecordUsageFromProxyData(proxyData, false)
@@ -195,6 +215,8 @@ func (n *Node) SetProxyStreamHandlers() {
 	(*n.Host).SetStreamHandler(protocol.ID(ProxyWsDataFromClientSide), n.ProxyWsDataHandler)
 	(*n.Host).SetStreamHandler(protocol.ID(ProxyWsDataFromServiceSide), n.ProxyWsDataHandler)
 	(*n.Host).SetStreamHandler(protocol.ID(ProxyHttpRespFromServiceSide), n.ProxyHttpRespHandler)
+
+	// Socket related handlers
 	(*n.Host).SetStreamHandler(protocol.ID(ProxySocketInitReq), n.ProxySocketInitReqHandler)
 	(*n.Host).SetStreamHandler(protocol.ID(ProxySocketDataFromClientSide), n.ProxySocketDataHandler)
 	(*n.Host).SetStreamHandler(protocol.ID(ProxySocketDataFromServiceSide), n.ProxySocketDataHandler)
