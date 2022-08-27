@@ -150,6 +150,7 @@ message NodeReport {
 message ApronSocketInitRequest {
   string service_id = 1;
   string user_id = 2;
+  string peer_id = 3;
 }
 
 // Message indicates this request is used for socket connection
