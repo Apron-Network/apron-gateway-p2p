@@ -3,6 +3,7 @@ package trans_network
 import (
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/models"
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
 	"log"
+	"net"
 	"time"
 )
 
@@ -166,15 +168,46 @@ func (n *Node) ProxySocketInitReqHandler(s network.Stream) {
 		internal.CheckError(err)
 		log.Printf("Read init socket request from stream: %s\n", socketInitReq)
 
-		peerId, err := peer.Decode(socketInitReq.PeerId)
+		csgwPeerId, err := peer.Decode(socketInitReq.PeerId)
 		internal.CheckError(err)
 
-		log.Printf("PeerID: %+v\n", peerId)
+		log.Printf("ClientSideGateway PeerID: %+v\n", csgwPeerId)
 
 		// Get service detail from local services list and fill missing fields of request
 		serviceDetail := n.services[socketInitReq.ServiceId]
 		log.Printf("Service detail: %#v\n", serviceDetail)
 
+		socketServiceUrl := serviceDetail.Providers[0].GetBaseUrl()
+		log.Printf("Connect to socket service URL: %s\n", socketServiceUrl)
+
+		serviceSocketConn, err := net.Dial("tcp", socketServiceUrl)
+		internal.CheckError(err)
+
+		// TODO: Get request ID and create mapping
+		n.serviceSocketConns[socketInitReq.RequestId] = &serviceSocketConn
+
+		respStream, err := (*n.Host).NewStream(context.Background(), csgwPeerId, protocol.ID(ProxySocketDataFromServiceSide))
+
+		go func() {
+			serverReader := bufio.NewReader(serviceSocketConn)
+			buf := make([]byte, 4096)
+			for {
+				_, err := serverReader.Read(buf)
+				internal.CheckError(err)
+
+				log.Printf("ServiceSideGateway: Received message from service: %q\n", buf)
+
+				forwardData := &models.ApronServiceData{
+					RequestId: socketInitReq.RequestId,
+					RawData:   buf,
+				}
+
+				forwardDataBytes, err := proto.Marshal(forwardData)
+				internal.CheckError(err)
+				WriteBytesViaStream(respStream, forwardDataBytes)
+			}
+		}()
+		select {}
 	}
 
 }

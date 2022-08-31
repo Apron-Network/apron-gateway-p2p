@@ -49,6 +49,7 @@ type Node struct {
 	clientWsConns      map[string]*websocket.Conn
 	serviceWsConns     map[string]*websocket.Conn
 	clientSocketConns  map[string]*net.Conn
+	serviceSocketConns map[string]*net.Conn
 	clientHttpDataChan map[string]chan []byte
 
 	serviceUsageRecordManager models.UsageRecordManager
@@ -85,6 +86,7 @@ func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
 		clientWsConns:             map[string]*websocket.Conn{},
 		serviceWsConns:            map[string]*websocket.Conn{},
 		clientSocketConns:         map[string]*net.Conn{},
+		serviceSocketConns:        map[string]*net.Conn{},
 		clientHttpDataChan:        map[string]chan []byte{},
 		serviceUsageRecordManager: usageRecordManager,
 	}, nil
