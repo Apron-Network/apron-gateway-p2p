@@ -149,8 +149,9 @@ message NodeReport {
 // After receiving this request, ClientSideGateway will try to connect with ServiceSideGateway from its services list.
 message ApronSocketInitRequest {
   string service_id = 1;
-  string user_id = 2;
+  string request_id = 2;
   string peer_id = 3;
+  string user_id = 4;
 }
 
 // Message indicates this request is used for socket connection
