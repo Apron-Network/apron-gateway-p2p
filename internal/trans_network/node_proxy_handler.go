@@ -184,7 +184,7 @@ func (n *Node) ProxySocketInitReqHandler(s network.Stream) {
 		internal.CheckError(err)
 
 		// TODO: Get request ID and create mapping
-		n.serviceSocketConns[socketInitReq.RequestId] = &serviceSocketConn
+		n.serviceSocketConns[socketInitReq.RequestId] = serviceSocketConn
 
 		respStream, err := (*n.Host).NewStream(context.Background(), csgwPeerId, protocol.ID(ProxySocketDataFromServiceSide))
 
@@ -192,14 +192,14 @@ func (n *Node) ProxySocketInitReqHandler(s network.Stream) {
 			serverReader := bufio.NewReader(serviceSocketConn)
 			buf := make([]byte, 4096)
 			for {
-				_, err := serverReader.Read(buf)
+				readSize, err := serverReader.Read(buf)
 				internal.CheckError(err)
 
-				log.Printf("ServiceSideGateway: Received message from service: %q\n", buf)
+				log.Printf("ServiceSideGateway: Received message from service: %q\n", buf[:readSize])
 
 				forwardData := &models.ApronServiceData{
 					RequestId: socketInitReq.RequestId,
-					RawData:   buf,
+					RawData:   buf[:readSize],
 				}
 
 				forwardDataBytes, err := proto.Marshal(forwardData)
@@ -224,17 +224,18 @@ func (n *Node) ProxySocketDataHandler(s network.Stream) {
 			err := proto.Unmarshal(proxyDataBytes, proxyData)
 			internal.CheckError(err)
 
-			log.Printf("ProxySocketDataHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
+			//log.Printf("ProxySocketDataHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
 
 			if s.Protocol() == protocol.ID(ProxySocketDataFromClientSide) {
 				log.Printf("ProxyDataFromClientSideHandler: Send data to service\n")
-				//err = n.serviceWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
-				//internal.CheckError(err)
+				//log.Printf("Request data: %+q\n", proxyData.RawData)
+				_, err := n.serviceSocketConns[proxyData.RequestId].Write(proxyData.RawData)
+				internal.CheckError(err)
 				//n.serviceUsageRecordManager.RecordUsageFromProxyData(proxyData, true)
 			} else if s.Protocol() == protocol.ID(ProxySocketDataFromServiceSide) {
 				log.Printf("ProxyDataFromServiceHandler: Send data to client\n")
-				//err = n.clientWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
-				//internal.CheckError(err)
+				_, err = n.clientSocketConns[proxyData.RequestId].Write(proxyData.RawData)
+				internal.CheckError(err)
 				//n.serviceUsageRecordManager.RecordUsageFromProxyData(proxyData, false)
 			} else {
 				panic(errors.New(fmt.Sprintf("wrong protocol: %s", s.Protocol())))

@@ -92,8 +92,8 @@ func (n *Node) StartSocketForwardService() {
 				return
 			}
 
-			// Build request package with passed in request
 			reqBytes, err := proto.Marshal(req)
+			log.Printf("Init socket request, req size: %d\n", reqBytes)
 			internal.CheckError(err)
 			WriteBytesViaStream(initSocketConnStream, reqBytes)
 
@@ -104,28 +104,25 @@ func (n *Node) StartSocketForwardService() {
 			}
 
 			// Save client to CSGW connection in node, which will be used in stream handler function
-			n.clientSocketConns[requestId] = &conn
+			n.clientSocketConns[requestId] = conn
 
-			clientDataReader := bufio.NewReader(conn)
-			clientDataBuf := make([]byte, 4096)
-
+			buf := make([]byte, 4096)
 			go func() {
 				for {
-					msgSize, err := clientDataReader.Read(clientDataBuf)
+					readSize, err := conn.Read(buf)
 					internal.CheckError(err)
 
-					log.Printf("ClientSideGateway: Received %d byte message from client: %q\n", msgSize, clientDataBuf)
-
-					forwardData := &models.ApronServiceData{
-						RequestId: req.RequestId,
-						RawData:   clientDataBuf,
+					log.Printf("Received data from client: %q\n", buf[:readSize])
+					serviceData := models.ApronServiceData{
+						RequestId: requestId,
+						RawData:   buf[:readSize],
 					}
 
-					forwardDataBytes, err := proto.Marshal(forwardData)
+					serviceDataBytes, err := proto.Marshal(&serviceData)
 					internal.CheckError(err)
-					WriteBytesViaStream(clientSocketDataStream, forwardDataBytes)
-					log.Println("ClientSideGateway: socket data written to stream, wait for next client ws msg")
+					WriteBytesViaStream(clientSocketDataStream, serviceDataBytes)
 				}
+
 			}()
 
 			// Infinity loop to keep the connection
