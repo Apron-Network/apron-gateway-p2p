@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-func (n *Node) ProxyRequestStreamHandler(s network.Stream) {
+func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 	dataCh := make(chan []byte)
 	go ReadBytesViaStream(s, dataCh)
 
@@ -245,7 +245,7 @@ func (n *Node) ProxySocketDataHandler(s network.Stream) {
 }
 
 func (n *Node) SetProxyStreamHandlers() {
-	(*n.Host).SetStreamHandler(protocol.ID(ProxyReqStream), n.ProxyRequestStreamHandler)
+	(*n.Host).SetStreamHandler(protocol.ID(ProxyHttpInitReq), n.ProxyHttpInitRequestHandler)
 	(*n.Host).SetStreamHandler(protocol.ID(ProxyWsDataFromClientSide), n.ProxyWsDataHandler)
 	(*n.Host).SetStreamHandler(protocol.ID(ProxyWsDataFromServiceSide), n.ProxyWsDataHandler)
 	(*n.Host).SetStreamHandler(protocol.ID(ProxyHttpRespFromServiceSide), n.ProxyHttpRespHandler)

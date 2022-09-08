@@ -136,7 +136,7 @@ func (n *Node) StartForwardService() {
 
 		log.Printf("ClientSideGateway: Service URL requested from : %s\n", ctx.Request.URI())
 		log.Printf("ClientSideGateway: servicePeerId : %s\n", servicePeerId.String())
-		s, err := (*n.Host).NewStream(context.Background(), servicePeerId, protocol.ID(ProxyReqStream))
+		s, err := (*n.Host).NewStream(context.Background(), servicePeerId, protocol.ID(ProxyHttpInitReq))
 		if err != nil {
 			log.Printf("forward service request err: %+v\n", err)
 			ctx.Error(err.Error(), fasthttp.StatusInternalServerError)

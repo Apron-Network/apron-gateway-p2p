@@ -16,7 +16,7 @@ func (m *UsageRecordManager) Init() {
 	m.locks = make(map[string]*sync.RWMutex)
 }
 
-func (m *UsageRecordManager) RecordUsageFromProxyRequest(proxyReq *ApronServiceRequest, reqDetail *RequestDetail) {
+func (m *UsageRecordManager) RecordUsageFromInitHttpProxyRequest(proxyReq *ApronServiceRequest, reqDetail *RequestDetail) {
 	userKey, serviceId := ExtractServiceInfoFromRequestID(proxyReq.RequestId)
 	recordKey := GenerateUsageRecordKey(serviceId, userKey)
 	rcd, ok := m.records[recordKey]
@@ -40,7 +40,7 @@ func (m *UsageRecordManager) RecordUsageFromProxyRequest(proxyReq *ApronServiceR
 	}
 }
 
-func (m *UsageRecordManager) RecordUsageFromProxyData(proxyData *ApronServiceData, isClientToService bool) {
+func (m *UsageRecordManager) RecordUsageFromHttpProxyData(proxyData *ApronServiceData, isClientToService bool) {
 	userKey, serviceId := ExtractServiceInfoFromRequestID(proxyData.RequestId)
 	recordKey := GenerateUsageRecordKey(serviceId, userKey)
 
