@@ -4,7 +4,7 @@ all: gen build
 
 gen:internal/models/models.pb.go
 
-build: gateway report_generator
+build: gateway report_generator socks_client
 
 SOURCES = $(wildcard internal/*/*.go internal/*.go)
 
@@ -16,6 +16,9 @@ gateway: $(SOURCES) cmd/gateway/main.go
 
 report_generator: $(SOURCES) cmd/report_generator/main.go
 	go build ./cmd/report_generator
+
+socks_client: $(SOURCES) cmd/socks_app/main.go
+	go build ./cmd/socks_app/
 
 test:
 	go test -v -cover ./...
