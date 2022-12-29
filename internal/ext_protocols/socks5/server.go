@@ -88,57 +88,40 @@ func (s *Server) Serve(l net.Listener, apronMode bool) error {
 			return err
 		}
 
-		if apronMode {
-			go s.ServeConnectionFromApronClient(conn)
-		} else {
-			go s.ServeConnInNormalMode(conn)
+		go s.ServeConnection(conn, apronMode)
+	}
+}
+
+func (s *Server) ServeConnection(conn net.Conn, apronMode bool) error {
+	defer conn.Close()
+	request, err := s.prepareRequest(conn)
+	if err != nil {
+		err = fmt.Errorf("failed to prepare request: %v", err)
+		s.config.Logger.Printf("[ERR] socks: %v", err)
+		return err
+	}
+
+	if apronMode {
+		// TODO: Apron: Send request object to csgw
+
+		encodedBytes, err := binary.Marshal(request)
+		internal.CheckError(err)
+		*s.config.MsgCh <- encodedBytes
+	} else {
+		if client, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
+			request.RemoteAddr = &AddrSpec{IP: client.IP, Port: client.Port}
+		}
+
+		// Process the client request
+		if err := s.handleRequest(request, conn); err != nil {
+			err = fmt.Errorf("failed to handle request: %v", err)
+			s.config.Logger.Printf("[ERR] socks: %v", err)
+			return err
 		}
 	}
-}
-
-// ServeConnectionFromApronClient is used to serve a single connection in apron network,
-// the data will be forwarded to Apron CSGW
-func (s *Server) ServeConnectionFromApronClient(conn net.Conn) error {
-	defer conn.Close()
-	request, err := s.prepareRequest(conn)
-	if err != nil {
-		err = fmt.Errorf("failed to prepare request: %v", err)
-		s.config.Logger.Printf("[ERR] socks: %v", err)
-		return err
-	}
-
-	// TODO: Apron: Send request object to csgw
-
-	encodedBytes, err := binary.Marshal(request)
-	internal.CheckError(err)
-	*s.config.MsgCh <- encodedBytes
 
 	return nil
-}
 
-// ServeConnInNormalMode is used to serve a single connection in normal mode,
-// the data will be forwarded to remote addr directly
-func (s *Server) ServeConnInNormalMode(conn net.Conn) error {
-	defer conn.Close()
-	request, err := s.prepareRequest(conn)
-	if err != nil {
-		err = fmt.Errorf("failed to prepare request: %v", err)
-		s.config.Logger.Printf("[ERR] socks: %v", err)
-		return err
-	}
-
-	if client, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
-		request.RemoteAddr = &AddrSpec{IP: client.IP, Port: client.Port}
-	}
-
-	// Process the client request
-	if err := s.handleRequest(request, conn); err != nil {
-		err = fmt.Errorf("failed to handle request: %v", err)
-		s.config.Logger.Printf("[ERR] socks: %v", err)
-		return err
-	}
-
-	return nil
 }
 
 func (s *Server) prepareRequest(conn net.Conn) (*Request, error) {

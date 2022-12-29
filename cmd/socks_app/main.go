@@ -25,7 +25,7 @@ func sendSocketInitRequest(serviceId string, csgwConn net.Conn) {
 }
 
 // TODO: Apron: Add client msg channel to server config and pass to new socks5 server
-func startSocks5Server(clientMsgCh *chan []byte) {
+func startApronSocks5Server(clientMsgCh *chan []byte) {
 	// Socks5 service
 	conf := &socks5.Config{MsgCh: clientMsgCh}
 	server, err := socks5.New(conf)
@@ -83,7 +83,7 @@ func main() {
 	msgCh := make(chan []byte)
 
 	go connectToCsgw(*csgwAddr, *serviceId, &msgCh)
-	go startSocks5Server(&msgCh)
+	go startApronSocks5Server(&msgCh)
 
 	select {}
 }
