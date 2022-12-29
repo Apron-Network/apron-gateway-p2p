@@ -41,14 +41,6 @@ type AddressRewriter interface {
 	Rewrite(ctx context.Context, request *Request) (context.Context, *AddrSpec)
 }
 
-// AddrSpec is used to return the target AddrSpec
-// which may be specified as IPv4, IPv6, or a FQDN
-type AddrSpec struct {
-	FQDN string
-	IP   net.IP
-	Port int
-}
-
 func (a *AddrSpec) String() string {
 	if a.FQDN != "" {
 		return fmt.Sprintf("%s (%s):%d", a.FQDN, a.IP, a.Port)
@@ -63,23 +55,6 @@ func (a AddrSpec) Address() string {
 		return net.JoinHostPort(a.IP.String(), strconv.Itoa(a.Port))
 	}
 	return net.JoinHostPort(a.FQDN, strconv.Itoa(a.Port))
-}
-
-// A Request represents request received by a server
-type Request struct {
-	// Protocol version
-	Version uint8
-	// Requested command
-	Command uint8
-	// AuthContext provided during negotiation
-	AuthContext *AuthContext
-	// AddrSpec of the the network that sent the request
-	RemoteAddr *AddrSpec
-	// AddrSpec of the desired destination
-	DestAddr *AddrSpec
-	// AddrSpec of the actual destination (might be affected by rewrite)
-	realDestAddr *AddrSpec
-	bufConn      io.Reader
 }
 
 type conn interface {
@@ -161,8 +136,10 @@ func (s *Server) handleRequest(req *Request, conn conn) error {
 }
 
 func (s *Server) handleRequestToApronNetwork(req *Request, conn conn) error {
-
-	return nil
+	reqBytes := req.toBytes()
+	writeByte, err := conn.Write(reqBytes)
+	log.Printf("Write %d bytes", writeByte)
+	return err
 }
 
 // handleConnect is used to handle a connect command

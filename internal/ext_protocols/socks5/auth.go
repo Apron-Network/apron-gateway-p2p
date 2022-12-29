@@ -19,16 +19,6 @@ var (
 	NoSupportedAuth = fmt.Errorf("no supported authentication mechanism")
 )
 
-// AuthContext is a Request encapsulates authentication state provided during negotiation
-type AuthContext struct {
-	// Provided auth method
-	Method uint8
-	// Payload provided during negotiation.
-	// Keys depend on the used auth method.
-	// For UserPassauth contains Username
-	Payload map[string]string
-}
-
 type Authenticator interface {
 	Authenticate(reader io.Reader, writer io.Writer) (*AuthContext, error)
 	GetCode() uint8
