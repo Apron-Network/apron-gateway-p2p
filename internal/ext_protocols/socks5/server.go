@@ -7,6 +7,9 @@ import (
 	"log"
 	"net"
 	"os"
+
+	"apron.network/gateway-p2p/internal"
+	"github.com/kelindar/binary"
 )
 
 const (
@@ -14,38 +17,15 @@ const (
 )
 
 type Config struct {
-	// AuthMethods can be provided to implement custom authentication
-	// By default, "auth-less" mode is enabled.
-	// For password-based auth use UserPassAuthenticator.
 	AuthMethods []Authenticator
-
-	// If provided, username/password authentication is enabled,
-	// by appending a UserPassAuthenticator to AuthMethods. If not provided,
-	// and AUthMethods is nil, then "auth-less" mode is enabled.
 	Credentials CredentialStore
-
-	// Resolver can be provided to do custom name resolution.
-	// Defaults to DNSResolver if not provided.
-	Resolver NameResolver
-
-	// Rules is provided to enable custom logic around permitting
-	// various commands. If not provided, PermitAll is used.
-	Rules RuleSet
-
-	// Rewriter can be used to transparently rewrite addresses.
-	// This is invoked before the RuleSet is invoked.
-	// Defaults to NoRewrite.
-	Rewriter AddressRewriter
-
-	// BindIP is used for bind or udp associate
-	BindIP net.IP
-
-	// Logger can be used to provide a custom log target.
-	// Defaults to stdout.
-	Logger *log.Logger
-
-	// Optional function for dialing out
-	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
+	Resolver    NameResolver
+	Rules       RuleSet
+	Rewriter    AddressRewriter
+	BindIP      net.IP
+	Logger      *log.Logger
+	Dial        func(ctx context.Context, network, addr string) (net.Conn, error)
+	MsgCh       *chan []byte
 }
 type Server struct {
 	config      *Config
@@ -92,62 +72,61 @@ func New(conf *Config) (*Server, error) {
 }
 
 // ListenAndServe is used to create a listener and serve on it
-func (s *Server) ListenAndServe(network, addr string) error {
-	l, err := net.Listen(network, addr)
+func (s *Server) ListenAndServe(networkType, addr string, apronMode bool) error {
+	l, err := net.Listen(networkType, addr)
 	if err != nil {
 		return err
 	}
-	return s.Serve(l)
+	return s.Serve(l, apronMode)
 }
 
 // Serve is used to serve connections from a listener
-func (s *Server) Serve(l net.Listener) error {
+func (s *Server) Serve(l net.Listener, apronMode bool) error {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
 			return err
 		}
-		go s.ServeConn(conn)
+
+		if apronMode {
+			go s.ServeConnectionFromApronClient(conn)
+		} else {
+			go s.ServeConnInNormalMode(conn)
+		}
 	}
 }
 
-// ServeConn is used to serve a single connection.
-func (s *Server) ServeConn(conn net.Conn) error {
+// ServeConnectionFromApronClient is used to serve a single connection in apron network,
+// the data will be forwarded to Apron CSGW
+func (s *Server) ServeConnectionFromApronClient(conn net.Conn) error {
 	defer conn.Close()
-	bufConn := bufio.NewReader(conn)
-
-	// Read the version byte
-	version := []byte{0}
-	if _, err := bufConn.Read(version); err != nil {
-		s.config.Logger.Printf("[ERR] socks: Failed to get version byte: %v", err)
-		return err
-	}
-
-	// Ensure we are compatible
-	if version[0] != socks5Version {
-		err := fmt.Errorf("unsupported SOCKS version: %v", version)
+	request, err := s.prepareRequest(conn)
+	if err != nil {
+		err = fmt.Errorf("failed to prepare request: %v", err)
 		s.config.Logger.Printf("[ERR] socks: %v", err)
 		return err
 	}
 
-	// Authenticate the connection
-	authContext, err := s.authenticate(conn, bufConn)
+	// TODO: Apron: Send request object to csgw
+
+	encodedBytes, err := binary.Marshal(request)
+	internal.CheckError(err)
+	*s.config.MsgCh <- encodedBytes
+
+	return nil
+}
+
+// ServeConnInNormalMode is used to serve a single connection in normal mode,
+// the data will be forwarded to remote addr directly
+func (s *Server) ServeConnInNormalMode(conn net.Conn) error {
+	defer conn.Close()
+	request, err := s.prepareRequest(conn)
 	if err != nil {
-		err = fmt.Errorf("failed to authenticate: %v", err)
+		err = fmt.Errorf("failed to prepare request: %v", err)
 		s.config.Logger.Printf("[ERR] socks: %v", err)
 		return err
 	}
 
-	request, err := NewRequest(bufConn)
-	if err != nil {
-		if err == unrecognizedAddrType {
-			if err := sendReply(conn, addrTypeNotSupported, nil); err != nil {
-				return fmt.Errorf("failed to send reply: %v", err)
-			}
-		}
-		return fmt.Errorf("failed to read destination address: %v", err)
-	}
-	request.AuthContext = authContext
 	if client, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
 		request.RemoteAddr = &AddrSpec{IP: client.IP, Port: client.Port}
 	}
@@ -160,4 +139,44 @@ func (s *Server) ServeConn(conn net.Conn) error {
 	}
 
 	return nil
+}
+
+func (s *Server) prepareRequest(conn net.Conn) (*Request, error) {
+	bufConn := bufio.NewReader(conn)
+
+	// Read the version byte
+	version := []byte{0}
+	if _, err := bufConn.Read(version); err != nil {
+		s.config.Logger.Printf("[ERR] socks: Failed to get version byte: %v", err)
+		return nil, err
+	}
+
+	// Ensure we are compatible
+	if version[0] != socks5Version {
+		err := fmt.Errorf("unsupported SOCKS version: %v", version)
+		s.config.Logger.Printf("[ERR] socks: %v", err)
+		return nil, err
+	}
+
+	// Authenticate the connection
+	authContext, err := s.authenticate(conn, bufConn)
+	if err != nil {
+		err = fmt.Errorf("failed to authenticate: %v", err)
+		s.config.Logger.Printf("[ERR] socks: %v", err)
+		return nil, err
+	}
+
+	request, err := NewRequest(bufConn)
+	if err != nil {
+		if err == unrecognizedAddrType {
+			if err := sendReply(conn, addrTypeNotSupported, nil); err != nil {
+				return nil, fmt.Errorf("failed to send reply: %v", err)
+			}
+		}
+		return nil, fmt.Errorf("failed to read destination address: %v", err)
+	}
+
+	request.AuthContext = authContext
+
+	return request, nil
 }
