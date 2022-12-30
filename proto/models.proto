@@ -2,6 +2,14 @@ syntax = "proto3";
 
 option go_package = "apron.network/gateway/models";
 
+enum NetworkType {
+  UNKNOWN = 0;
+  Tcp4 = 1;
+  Tcp6 = 2;
+  Udp4 = 3;
+  Udp6 = 4;
+}
+
 message ApronApiKey {
   string key = 1;
   string service_id = 2;
@@ -20,7 +28,12 @@ message ApronServiceProvider {
   string extra_detail = 6;
 
   string base_url = 20;
-  string schema = 21;
+  string schema = 21;   // schema is used for specifying url protocol
+
+  // network_type indicates network type, (tcp/udp and v4/6).
+  // For http/ws requests, currently this field will be ignored since only tcp4 is available.
+  // For other request, this will be used to check whether tcp or udp service should be started
+  NetworkType network_type = 22;
 }
 
 // {
@@ -59,7 +72,7 @@ message ApronService {
   // Providers for this service
   repeated ApronServiceProvider providers = 10;
 
-  bool is_deleted =11;
+  bool is_deleted = 11;
 }
 
 message ApronUser {
