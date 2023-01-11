@@ -1,27 +1,21 @@
 all: gen build
 
-.PHONY: gen clean
+.PHONY: gen clean test
 
-gen:internal/models/models.pb.go
+GO_SOURCES = $(wildcard internal/*/*.go internal/*.go)
+OUTPUT_BINS = $(patsubst cmd/%, bin/%, $(wildcard cmd/*))
 
-build: bin/gateway bin/report_generator bin/socks_app bin/socks_server
+PB_FILES = $(wildcard proto/*.proto)
+GEN_PB_GO_FILES = $(patsubst proto/%,internal/models/%,$(patsubst %.proto,%.pb.go,$(PB_FILES)))
 
-SOURCES = $(wildcard internal/*/*.go internal/*.go)
+gen: $(GEN_PB_GO_FILES)
+build: $(OUTPUT_BINS)
 
-internal/models/models.pb.go: proto/models.proto
-	protoc --proto_path=proto --go_out=internal/models --go_opt=paths=source_relative proto/models.proto
+internal/models/%.pb.go: proto/%.proto
+	protoc --proto_path=proto --go_out=internal/models --go_opt=paths=source_relative $<
 
-bin/gateway: $(SOURCES) cmd/gateway/main.go
-	go build -o bin/ ./cmd/gateway
-
-bin/report_generator: $(SOURCES) cmd/report_generator/main.go
-	go build -o bin/ ./cmd/report_generator
-
-bin/socks_app: $(SOURCES) cmd/socks_app/main.go
-	go build -o bin/ ./cmd/socks_app/
-
-bin/socks_server: $(SOURCES) cmd/socks_server/main.go
-	go build -o bin/ ./cmd/socks_server/
+bin/%: cmd/%/main.go $(GO_SOURCES)
+	go build -o bin/ $<
 
 test:
 	go test -v -cover ./...
