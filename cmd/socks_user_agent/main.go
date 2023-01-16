@@ -9,10 +9,11 @@ import (
 	"apron.network/gateway-p2p/internal/ext_protocols/socks5"
 	"apron.network/gateway-p2p/internal/models"
 	"apron.network/gateway-p2p/internal/trans_network"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
 
-// socks_app stands between csgw and user app, which provides same interface with apron demo grpc service,
+// socks_user_agent stands between csgw and user app, which provides same interface with apron demo grpc service,
 // For connecting service via Apron network, client should enable something like Apron mode
 // In the apron mode, client will try to pass
 
@@ -25,15 +26,23 @@ func sendSocketInitRequest(serviceId string, csgwConn net.Conn) {
 }
 
 // TODO: Apron: Add client msg channel to server config and pass to new socks5 server
-func startApronSocks5Server(clientMsgCh *chan []byte) {
+func startApronSocks5UserSideAgent(clientMsgCh *chan []byte) {
+	logger, err := zap.NewProduction()
+	internal.CheckError(err)
+
 	// Socks5 service
-	conf := &socks5.Config{MsgCh: clientMsgCh}
-	server, err := socks5.New(conf)
+	conf := &socks5.Config{
+		MsgCh: clientMsgCh,
+		Logger: logger,
+	}
+
+	server, err := socks5.NewApronServer(conf, socks5.ClientSideMode)
 	if err != nil {
+		logger.Error("new socks5 server error", zap.Error(err))
 		panic(err)
 	}
 
-	if err := server.ListenAndServe("tcp", "127.0.0.1:8000", true); err != nil {
+	if err := server.ListenAndServe("tcp", "127.0.0.1:9876"); err != nil {
 		panic(err)
 	}
 }
@@ -83,7 +92,7 @@ func main() {
 	msgCh := make(chan []byte)
 
 	go connectToCsgw(*csgwAddr, *serviceId, &msgCh)
-	go startApronSocks5Server(&msgCh)
+	go startApronSocks5UserSideAgent(&msgCh)
 
 	select {}
 }
