@@ -4,16 +4,9 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"log"
 	"net"
-	"os"
 
-	"apron.network/gateway-p2p/internal"
-	"github.com/kelindar/binary"
-)
-
-const (
-	socks5Version = uint8(5)
+	"go.uber.org/zap"
 )
 
 type Config struct {
@@ -23,7 +16,7 @@ type Config struct {
 	Rules       RuleSet
 	Rewriter    AddressRewriter
 	BindIP      net.IP
-	Logger      *log.Logger
+	Logger      *zap.Logger
 	Dial        func(ctx context.Context, network, addr string) (net.Conn, error)
 	MsgCh       *chan []byte
 }
@@ -55,7 +48,7 @@ func New(conf *Config) (*Server, error) {
 
 	// Ensure we have a log target
 	if conf.Logger == nil {
-		conf.Logger = log.New(os.Stdout, "", log.LstdFlags)
+		conf.Logger = zap.NewExample()
 	}
 
 	server := &Server{
@@ -93,35 +86,53 @@ func (s *Server) Serve(l net.Listener, apronMode bool) error {
 }
 
 func (s *Server) ServeConnection(conn net.Conn, apronMode bool) error {
+	//if apronMode {
+	//	// TODO: Apron: Send request object to csgw, add protocol type (socks5)
+	//	// Send request dest IP, auth context to target service via ssgw
+	//
+	//	// Negotiation Phase
+	//	// 1. Create socks5.ApronSocks5ConnectRequest object
+	//	// 2. Package it into ExtServiceData
+	//	// 3. Send to target service via Apron network
+	//	// 4. Wait for response
+	//
+	//	// Build init request, which will be sent to target server and check whether it can be served
+	//	initRequest, err := s.prepareApronInitRequest(conn)
+	//	internal.CheckError(err)
+	//
+	//	initRequestBytes, err := binary.Marshal(initRequest)
+	//	internal.CheckError(err)
+	//
+	//	reqData := &models.ExtServiceData{
+	//		ServiceName: socks5ServiceName,
+	//		ContentType: uint32(InitRequest),
+	//		Content:     initRequestBytes,
+	//	}
+	//
+	//	reqBytes, err := proto.Marshal(reqData)
+	//	internal.CheckError(err)
+	//
+	//	*s.config.MsgCh <- reqBytes
+	//}
 	defer conn.Close()
 	request, err := s.prepareRequest(conn)
 	if err != nil {
 		err = fmt.Errorf("failed to prepare request: %v", err)
-		s.config.Logger.Printf("[ERR] socks: %v", err)
+		s.config.Logger.Error("prepare request error", zap.Error(err))
 		return err
 	}
 
-	if apronMode {
-		// TODO: Apron: Send request object to csgw
-
-		encodedBytes, err := binary.Marshal(request)
-		internal.CheckError(err)
-		*s.config.MsgCh <- encodedBytes
-	} else {
-		if client, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
-			request.RemoteAddr = &AddrSpec{IP: client.IP, Port: client.Port}
-		}
-
-		// Process the client request
-		if err := s.handleRequest(request, conn); err != nil {
-			err = fmt.Errorf("failed to handle request: %v", err)
-			s.config.Logger.Printf("[ERR] socks: %v", err)
-			return err
-		}
+	if client, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
+		request.RemoteAddr = &AddrSpec{IP: client.IP, Port: client.Port}
 	}
 
+	// Process the client request
+	if err := s.handleRequest(request, conn); err != nil {
+		err = fmt.Errorf("failed to handle request: %v", err)
+		s.config.Logger.Error("handle request error", zap.Error(err))
+		return err
+	}
 	return nil
-
 }
 
 func (s *Server) prepareRequest(conn net.Conn) (*Request, error) {
@@ -130,14 +141,14 @@ func (s *Server) prepareRequest(conn net.Conn) (*Request, error) {
 	// Read the version byte
 	version := []byte{0}
 	if _, err := bufConn.Read(version); err != nil {
-		s.config.Logger.Printf("[ERR] socks: Failed to get version byte: %v", err)
+		s.config.Logger.Error("socks: Failed to get version byte", zap.Error(err))
 		return nil, err
 	}
 
 	// Ensure we are compatible
 	if version[0] != socks5Version {
 		err := fmt.Errorf("unsupported SOCKS version: %v", version)
-		s.config.Logger.Printf("[ERR] socks: %v", err)
+		s.config.Logger.Error("socks error", zap.Error(err))
 		return nil, err
 	}
 
@@ -145,7 +156,7 @@ func (s *Server) prepareRequest(conn net.Conn) (*Request, error) {
 	authContext, err := s.authenticate(conn, bufConn)
 	if err != nil {
 		err = fmt.Errorf("failed to authenticate: %v", err)
-		s.config.Logger.Printf("[ERR] socks: %v", err)
+		s.config.Logger.Error("socks error", zap.Error(err))
 		return nil, err
 	}
 

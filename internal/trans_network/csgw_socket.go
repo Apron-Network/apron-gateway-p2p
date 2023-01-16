@@ -1,23 +1,23 @@
 package trans_network
 
 import (
-	"apron.network/gateway-p2p/internal"
-	"apron.network/gateway-p2p/internal/models"
 	"bufio"
 	"context"
 	"encoding/binary"
 	"fmt"
+	"net"
+
+	"apron.network/gateway-p2p/internal"
+	"apron.network/gateway-p2p/internal/models"
 	"github.com/google/uuid"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	"google.golang.org/protobuf/proto"
-	"log"
-	"net"
 )
 
 // StartSocketForwardService used to forward socket data from client to correct gateway.
 // Forwarding socket data requires sending auth message first, which contains auth message and connection detail,
 func (n *Node) StartSocketForwardService() {
-	log.Printf("Socket Forward Server: %s\n", n.Config.SocketForwardServiceAddr)
+	n.logger.Sugar().Infof("Socket Forward Server: %s", n.Config.SocketForwardServiceAddr)
 	listen, err := net.Listen("tcp", n.Config.SocketForwardServiceAddr)
 	internal.CheckError(err)
 	for {
@@ -35,13 +35,13 @@ func (n *Node) StartSocketForwardService() {
 
 			// Read init request to get service detail
 			initRequest := models.ApronSocketInitRequest{}
-			log.Printf("Request size: %d\n", msgLen)
+			n.logger.Sugar().Infof("Request size: %d", msgLen)
 			initRequestBytes := make([]byte, msgLen)
 
 			// Parse init request
 			readSize, err := r.Read(initRequestBytes)
 			internal.CheckError(err)
-			log.Printf("Read size: %d\n", readSize)
+			n.logger.Sugar().Infof("Read size: %d", readSize)
 
 			err = proto.Unmarshal(initRequestBytes, &initRequest)
 			internal.CheckError(err)
@@ -68,7 +68,7 @@ func (n *Node) StartSocketForwardService() {
 				return
 			}
 
-			log.Printf("Service detail: %#v\n", service)
+			n.logger.Sugar().Infof("Service detail: %#v", service)
 
 			// Find service connection detail, build data package and send to correct gateway
 
@@ -88,18 +88,18 @@ func (n *Node) StartSocketForwardService() {
 
 			initSocketConnStream, err := (*n.Host).NewStream(context.Background(), servicePeerId, protocol.ID(ProxySocketInitReq))
 			if err != nil {
-				log.Printf("forward service init request err: %+v\n", err)
+				n.logger.Sugar().Errorf("forward service init request err: %+v\n", err)
 				return
 			}
 
 			reqBytes, err := proto.Marshal(req)
-			log.Printf("Init socket request, req size: %d\n", reqBytes)
+			n.logger.Sugar().Infof("Init socket request, req size: %d\n", reqBytes)
 			internal.CheckError(err)
 			WriteBytesViaStream(initSocketConnStream, reqBytes)
 
 			clientSocketDataStream, err := (*n.Host).NewStream(context.Background(), servicePeerId, protocol.ID(ProxySocketDataFromClientSide))
 			if err != nil {
-				log.Printf("forward service data request err: %+v\n", err)
+				n.logger.Sugar().Errorf("forward service data request err: %+v\n", err)
 				return
 			}
 
@@ -112,7 +112,7 @@ func (n *Node) StartSocketForwardService() {
 					readSize, err := conn.Read(buf)
 					internal.CheckError(err)
 
-					log.Printf("Received data from client: %q\n", buf[:readSize])
+					n.logger.Sugar().Infof("Received data from client: %q", buf[:readSize])
 					serviceData := models.ApronServiceData{
 						RequestId: requestId,
 						RawData:   buf[:readSize],

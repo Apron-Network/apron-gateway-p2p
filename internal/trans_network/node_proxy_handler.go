@@ -1,21 +1,21 @@
 package trans_network
 
 import (
-	"apron.network/gateway-p2p/internal"
-	"apron.network/gateway-p2p/internal/models"
 	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"time"
+
+	"apron.network/gateway-p2p/internal"
+	"apron.network/gateway-p2p/internal/models"
 	"github.com/fasthttp/websocket"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
-	"log"
-	"net"
-	"time"
 )
 
 func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
@@ -27,7 +27,7 @@ func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 		proxyReq := &models.ApronServiceRequest{}
 		err := proto.Unmarshal(proxyReqBytes, proxyReq)
 		internal.CheckError(err)
-		log.Printf("Read proxy request from stream: %s\n", proxyReq)
+		n.logger.Sugar().Infof("Read proxy request from stream: %s\n", proxyReq)
 
 		httpReq, err := proxyReq.RecoverClientRequest()
 		internal.CheckError(err)
@@ -42,9 +42,9 @@ func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 
 		// Get service detail from local services list and fill missing fields of request
 		serviceDetail := n.services[proxyReq.ServiceId]
-		log.Printf("Service detail: %#v\n", serviceDetail)
+		n.logger.Sugar().Infof("Service detail: %#v\n", serviceDetail)
 		reqToService := proxyReq.BuildHttpRequestToService(&clientReqDetail, httpReq, &serviceDetail)
-		log.Printf("Request to service: %#v\n", reqToService)
+		n.logger.Sugar().Infof("Request to service: %#v\n", reqToService)
 		defer fasthttp.ReleaseRequest(reqToService)
 
 		if proxyReq.IsWsRequest {
@@ -55,7 +55,7 @@ func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 				HandshakeTimeout: 15 * time.Second,
 			}
 
-			log.Printf("ServiceSideGateway: client side req URL: %s", reqToService.URI().String())
+			n.logger.Sugar().Infof("ServiceSideGateway: client side req URL: %s", reqToService.URI().String())
 			serviceWsConn, _, err := dialer.Dial(reqToService.URI().String(), nil)
 			internal.CheckError(err)
 
@@ -66,7 +66,7 @@ func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 					_, msgBytes, err := serviceWsConn.ReadMessage()
 					internal.CheckError(err)
 
-					log.Printf("ServiceSideGateway: Received message from service: %q\n", msgBytes)
+					n.logger.Sugar().Infof("ServiceSideGateway: Received message from service: %q\n", msgBytes)
 
 					forwardData := &models.ApronServiceData{
 						RequestId: proxyReq.RequestId,
@@ -98,8 +98,8 @@ func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 			respBytes, err := proto.Marshal(serviceResp)
 			internal.CheckError(err)
 
-			log.Printf("ServiceSideGateway: Write response data: %+q\n", respBody)
-			log.Printf("resp stream is nil %+v\n", respStream == nil)
+			n.logger.Sugar().Infof("ServiceSideGateway: Write response data: %+q\n", respBody)
+			n.logger.Sugar().Infof("resp stream is nil %+v\n", respStream == nil)
 			WriteBytesViaStream(respStream, respBytes)
 		}
 	}
@@ -116,15 +116,15 @@ func (n *Node) ProxyWsDataHandler(s network.Stream) {
 			err := proto.Unmarshal(proxyDataBytes, proxyData)
 			internal.CheckError(err)
 
-			log.Printf("ProxyWsDataHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
+			n.logger.Sugar().Infof("ProxyWsDataHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
 
 			if s.Protocol() == protocol.ID(ProxyWsDataFromClientSide) {
-				log.Printf("ProxyDataFromClientSideHandler: Send data to service\n")
+				n.logger.Sugar().Infof("ProxyDataFromClientSideHandler: Send data to service\n")
 				err = n.serviceWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
 				internal.CheckError(err)
 				n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, true)
 			} else if s.Protocol() == protocol.ID(ProxyWsDataFromServiceSide) {
-				log.Printf("ProxyDataFromServiceHandler: Send data to client\n")
+				n.logger.Sugar().Infof("ProxyDataFromServiceHandler: Send data to client\n")
 				err = n.clientWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
 				internal.CheckError(err)
 				n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, false)
@@ -146,7 +146,7 @@ func (n *Node) ProxyHttpRespHandler(s network.Stream) {
 			err := proto.Unmarshal(proxyDataBytes, proxyData)
 			internal.CheckError(err)
 
-			log.Printf("ProxyHttpRespHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
+			n.logger.Sugar().Infof("ProxyHttpRespHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
 			n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, false)
 
 			n.clientHttpDataChan[proxyData.RequestId] <- proxyData.RawData
@@ -166,21 +166,21 @@ func (n *Node) ProxySocketInitReqHandler(s network.Stream) {
 		socketInitReq := &models.ApronSocketInitRequest{}
 		err := proto.Unmarshal(proxyReqBytes, socketInitReq)
 		internal.CheckError(err)
-		log.Printf("Read init socket request from stream: %s\n", socketInitReq)
+		n.logger.Sugar().Infof("Read init socket request from stream: %s\n", socketInitReq)
 
 		csgwPeerId, err := peer.Decode(socketInitReq.PeerId)
 		internal.CheckError(err)
 
-		log.Printf("ClientSideGateway PeerID: %+v\n", csgwPeerId)
+		n.logger.Sugar().Infof("ClientSideGateway PeerID: %+v\n", csgwPeerId)
 
 		n.serviceUsageRecordManager.RecordUsageFromSocket(socketInitReq)
 
 		// Get service detail from local services list and fill missing fields of request
 		serviceDetail := n.services[socketInitReq.ServiceId]
-		log.Printf("Service detail: %#v\n", serviceDetail)
+		n.logger.Sugar().Infof("Service detail: %#v", serviceDetail)
 
 		socketServiceUrl := serviceDetail.Providers[0].GetBaseUrl()
-		log.Printf("Connect to socket service URL: %s\n", socketServiceUrl)
+		n.logger.Sugar().Infof("Connect to socket service URL: %s", socketServiceUrl)
 
 		serviceSocketConn, err := net.Dial("tcp", socketServiceUrl)
 		internal.CheckError(err)
@@ -188,6 +188,7 @@ func (n *Node) ProxySocketInitReqHandler(s network.Stream) {
 		// TODO: Get request ID and create mapping
 		n.serviceSocketConns[socketInitReq.RequestId] = serviceSocketConn
 
+		// create stream with CSGW for response data
 		respStream, err := (*n.Host).NewStream(context.Background(), csgwPeerId, protocol.ID(ProxySocketDataFromServiceSide))
 
 		go func() {
@@ -197,7 +198,7 @@ func (n *Node) ProxySocketInitReqHandler(s network.Stream) {
 				readSize, err := serverReader.Read(buf)
 				internal.CheckError(err)
 
-				log.Printf("ServiceSideGateway: Received message from service: %q\n", buf[:readSize])
+				n.logger.Sugar().Infof("ServiceSideGateway: Received message from service: %q", buf[:readSize])
 
 				forwardData := &models.ApronServiceData{
 					RequestId: socketInitReq.RequestId,
@@ -226,16 +227,18 @@ func (n *Node) ProxySocketDataHandler(s network.Stream) {
 			err := proto.Unmarshal(proxyDataBytes, proxyData)
 			internal.CheckError(err)
 
-			//log.Printf("ProxySocketDataHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
+			//n.logger.Sugar().Infof("ProxySocketDataHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
 
 			if s.Protocol() == protocol.ID(ProxySocketDataFromClientSide) {
-				log.Printf("ProxyDataFromClientSideHandler: Send data to service\n")
-				//log.Printf("Request data: %+q\n", proxyData.RawData)
+				n.logger.Sugar().Infof("ProxyDataFromClientSideHandler: Send data to service\n")
+				//n.logger.Sugar().Infof("Request data: %+q\n", proxyData.RawData)
 				_, err := n.serviceSocketConns[proxyData.RequestId].Write(proxyData.RawData)
 				internal.CheckError(err)
-				n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, true)
+
+				// TODO: Record socket usage data is not implemented yet
+				//n.serviceUsageRecordManager.RecordUsageFromSocket(proxyData, true)
 			} else if s.Protocol() == protocol.ID(ProxySocketDataFromServiceSide) {
-				log.Printf("ProxyDataFromServiceHandler: Send data to client\n")
+				n.logger.Sugar().Infof("ProxyDataFromServiceHandler: Send data to client\n")
 				_, err = n.clientSocketConns[proxyData.RequestId].Write(proxyData.RawData)
 				internal.CheckError(err)
 				n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, false)

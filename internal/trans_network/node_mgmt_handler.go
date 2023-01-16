@@ -1,12 +1,12 @@
 package trans_network
 
 import (
+	"encoding/json"
+
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/models"
-	"encoding/json"
 	"github.com/fasthttp/router"
 	"github.com/valyala/fasthttp"
-	"log"
 )
 
 func (n *Node) StartMgmtApiServer() {
@@ -22,17 +22,17 @@ func (n *Node) StartMgmtApiServer() {
 	serviceRouter.GET("/remote", n.listRemoteServiceHandler)
 	serviceRouter.GET("/peers", n.listServicePeerHandler)
 
-	log.Printf("Management API Server: %s\n", n.Config.MgmtAddr)
+	n.logger.Sugar().Infof("Management API Server: %s\n", n.Config.MgmtAddr)
 	fasthttp.ListenAndServe(n.Config.MgmtAddr, router.Handler)
 }
 
 // list all service including local and remote.
 func (n *Node) listServiceHandler(ctx *fasthttp.RequestCtx) {
-	log.Printf("[Service] List Available Service")
+	n.logger.Sugar().Infof("[Service] List Available Service")
 	rslt := make([]models.ApronService, 0, 100)
 
 	n.mutex.Lock()
-	log.Printf("[Service] List Service count: %+v\n", len(n.services))
+	n.logger.Sugar().Infof("[Service] List Service count: %+v\n", len(n.services))
 	for _, v := range n.services {
 		rslt = append(rslt, v)
 	}
@@ -45,11 +45,11 @@ func (n *Node) listServiceHandler(ctx *fasthttp.RequestCtx) {
 
 // list all service peer including local and remote.
 func (n *Node) listServicePeerHandler(ctx *fasthttp.RequestCtx) {
-	log.Printf("[Service] List Available Service Peers")
+	n.logger.Sugar().Infof("[Service] List Available Service Peers")
 	rslt := map[string]string{}
 
 	n.mutex.Lock()
-	log.Printf("[Service] List Service Peers count: %+v\n", len(n.servicePeerMapping))
+	n.logger.Sugar().Infof("[Service] List Service Peers count: %+v\n", len(n.servicePeerMapping))
 	for k, v := range n.servicePeerMapping {
 		rslt[k] = v.Pretty()
 	}
@@ -63,7 +63,7 @@ func (n *Node) listServicePeerHandler(ctx *fasthttp.RequestCtx) {
 // Invoke RegisterLocalService to add service to local service list
 // Publish service changes to all network via pubsub in BroadcastServiceChannel
 func (n *Node) newOrUpdateServiceHandler(ctx *fasthttp.RequestCtx) {
-	log.Printf("[Local Service] New OR Update Service")
+	n.logger.Sugar().Infof("[Local Service] New OR Update Service")
 
 	service := models.ApronService{}
 	err := json.Unmarshal(ctx.Request.Body(), &service)
@@ -73,7 +73,7 @@ func (n *Node) newOrUpdateServiceHandler(ctx *fasthttp.RequestCtx) {
 }
 
 func (n *Node) deleteServiceHandler(ctx *fasthttp.RequestCtx) {
-	log.Printf("[Service] Delete Service")
+	n.logger.Sugar().Infof("[Service] Delete Service")
 
 	service := models.ApronService{}
 	err := json.Unmarshal(ctx.Request.Body(), &service)
@@ -84,7 +84,7 @@ func (n *Node) deleteServiceHandler(ctx *fasthttp.RequestCtx) {
 }
 
 func (n *Node) listLocalServiceHandler(ctx *fasthttp.RequestCtx) {
-	log.Printf("[Local Service] List Available Service")
+	n.logger.Sugar().Infof("[Local Service] List Available Service")
 	rslt := make([]models.ApronService, 0, 100)
 
 	n.mutex.Lock()
@@ -101,7 +101,7 @@ func (n *Node) listLocalServiceHandler(ctx *fasthttp.RequestCtx) {
 }
 
 func (n *Node) listRemoteServiceHandler(ctx *fasthttp.RequestCtx) {
-	log.Printf("[Remote Service] List Available Service")
+	n.logger.Sugar().Infof("[Remote Service] List Available Service")
 	rslt := make([]models.ApronService, 0, 100)
 
 	n.mutex.Lock()

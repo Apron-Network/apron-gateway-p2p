@@ -1,11 +1,13 @@
 package trans_network
 
 import (
-	"apron.network/gateway-p2p/internal"
-	"apron.network/gateway-p2p/internal/models"
 	"bytes"
 	"context"
 	"fmt"
+	"log"
+
+	"apron.network/gateway-p2p/internal"
+	"apron.network/gateway-p2p/internal/models"
 	"github.com/fasthttp/websocket"
 	"github.com/google/uuid"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -13,7 +15,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
-	"log"
 )
 
 // TODO: Support LB.
@@ -41,9 +42,9 @@ func (n *Node) serveWebsocketRequest(ctx *fasthttp.RequestCtx, peerId peer.ID, r
 				_, msgBytes, err := clientWsConn.ReadMessage()
 				internal.CheckError(err)
 
-				log.Printf("ClientSideGateway: dataStream conn: %+v\n", dataStream.Conn())
+				n.logger.Sugar().Infof("ClientSideGateway: dataStream conn: %+v\n", dataStream.Conn())
 
-				log.Printf("ClientSideGateway: Received message from client: %q\n", msgBytes)
+				n.logger.Sugar().Infof("ClientSideGateway: Received message from client: %q\n", msgBytes)
 
 				forwardData := &models.ApronServiceData{
 					RequestId: req.RequestId,
@@ -78,7 +79,7 @@ func (n *Node) serveHttpRequest(ctx *fasthttp.RequestCtx, streamToServiceGW netw
 // The function first parses request sent from client to RequestDetail struct, then build ApronServiceRequest based
 // on the request data.
 func (n *Node) StartForwardService() {
-	log.Printf("Forward API Server: %s\n", n.Config.ForwardServiceAddr)
+	n.logger.Sugar().Infof("Forward API Server: %s\n", n.Config.ForwardServiceAddr)
 	fasthttp.ListenAndServe(n.Config.ForwardServiceAddr, func(ctx *fasthttp.RequestCtx) {
 		// Parse request URL and split service
 		var rawReq bytes.Buffer
@@ -94,8 +95,8 @@ func (n *Node) StartForwardService() {
 		}
 		serviceNameStr := string(clientReqDetail.ServiceName)
 
-		log.Printf("ClientSideGateway: Service name: %s\n", serviceNameStr)
-		log.Printf("ClientSideGateway: Current services mapping: %+v\n", n.servicePeerMapping)
+		n.logger.Sugar().Infof("ClientSideGateway: Service name: %s\n", serviceNameStr)
+		n.logger.Sugar().Infof("ClientSideGateway: Current services mapping: %+v\n", n.servicePeerMapping)
 
 		n.mutex.Lock()
 		servicePeerId, found := n.servicePeerMapping[serviceNameStr]
@@ -134,11 +135,11 @@ func (n *Node) StartForwardService() {
 		msgCh := make(chan []byte)
 		n.requestIdChanMapping[requestId] = msgCh
 
-		log.Printf("ClientSideGateway: Service URL requested from : %s\n", ctx.Request.URI())
-		log.Printf("ClientSideGateway: servicePeerId : %s\n", servicePeerId.String())
+		n.logger.Sugar().Infof("ClientSideGateway: Service URL requested from : %s\n", ctx.Request.URI())
+		n.logger.Sugar().Infof("ClientSideGateway: servicePeerId : %s\n", servicePeerId.String())
 		s, err := (*n.Host).NewStream(context.Background(), servicePeerId, protocol.ID(ProxyHttpInitReq))
 		if err != nil {
-			log.Printf("forward service request err: %+v\n", err)
+			n.logger.Sugar().Infof("forward service request err: %+v\n", err)
 			ctx.Error(err.Error(), fasthttp.StatusInternalServerError)
 			return
 		}
