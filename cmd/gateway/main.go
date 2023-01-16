@@ -1,11 +1,12 @@
 package main
 
 import (
-	"apron.network/gateway-p2p/internal/ipfs_agent"
 	"context"
 	"flag"
 	"log"
 	"sync"
+
+	"apron.network/gateway-p2p/internal/ipfs_agent"
 
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/trans_network"

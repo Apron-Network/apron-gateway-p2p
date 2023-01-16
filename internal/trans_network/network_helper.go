@@ -1,12 +1,13 @@
 package trans_network
 
 import (
-	"apron.network/gateway-p2p/internal"
 	"bufio"
 	"encoding/binary"
-	"github.com/libp2p/go-libp2p-core/network"
 	"io"
 	"log"
+
+	"apron.network/gateway-p2p/internal"
+	"github.com/libp2p/go-libp2p-core/network"
 )
 
 // WriteBytesViaStream writes data byte into network stream.

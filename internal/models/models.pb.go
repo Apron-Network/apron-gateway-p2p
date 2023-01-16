@@ -170,7 +170,7 @@ type ApronServiceProvider struct {
 	Schema      string `protobuf:"bytes,21,opt,name=schema,proto3" json:"schema,omitempty"` // schema is used for specifying url protocol
 	// network_type indicates network type, (tcp/udp and v4/6).
 	// For http/ws requests, currently this field will be ignored since only tcp4 is available.
-	// For other request, this will be used to check whether tcp or udp service should be started
+	// For other requests, this field is used for selecting appropriate tcp/udp and v4/v6 handler
 	NetworkType NetworkType `protobuf:"varint,22,opt,name=network_type,json=networkType,proto3,enum=NetworkType" json:"network_type,omitempty"`
 }
 

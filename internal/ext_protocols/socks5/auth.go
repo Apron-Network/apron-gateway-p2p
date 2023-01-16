@@ -101,7 +101,7 @@ func (a UserPassAuthenticator) Authenticate(reader io.Reader, writer io.Writer) 
 // authenticate is used to handle connection authentication
 func (s *Server) authenticate(conn io.Writer, bufConn io.Reader) (*AuthContext, error) {
 	// Get the methods
-	methods, err := readMethods(bufConn)
+	methods, err := readAuthMethods(bufConn)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get auth methods: %v", err)
 	}
@@ -125,9 +125,9 @@ func noAcceptableAuth(conn io.Writer) error {
 	return NoSupportedAuth
 }
 
-// readMethods is used to read the number of methods
+// readAuthMethods is used to read the number of methods
 // and proceeding auth methods
-func readMethods(r io.Reader) ([]byte, error) {
+func readAuthMethods(r io.Reader) ([]byte, error) {
 	header := []byte{0}
 	if _, err := r.Read(header); err != nil {
 		return nil, err
