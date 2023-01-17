@@ -13,7 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// socks_user_agent stands between csgw and user app, which provides same interface with apron demo grpc service,
+// socks_agent_user stands between csgw and user app, which provides same interface with apron demo grpc service,
 // For connecting service via Apron network, client should enable something like Apron mode
 // In the apron mode, client will try to pass
 
