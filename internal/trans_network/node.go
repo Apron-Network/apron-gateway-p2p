@@ -5,7 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 
-	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"go.uber.org/zap"
 
 	"log"
@@ -18,9 +18,9 @@ import (
 	"apron.network/gateway-p2p/internal/models"
 	"github.com/fasthttp/websocket"
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"google.golang.org/protobuf/proto"
 )
@@ -72,7 +72,7 @@ func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
 		pk, _, _ = crypto.GenerateEd25519Key(strings.NewReader(fmt.Sprintf("%032b", config.SecretKey)))
 	}
 
-	h, err := libp2p.New(context.Background(), libp2p.ListenAddrs(sourceMultiAddr), libp2p.Identity(pk))
+	h, err := libp2p.New(libp2p.ListenAddrs(sourceMultiAddr), libp2p.Identity(pk))
 	if err != nil {
 		return nil, err
 	}

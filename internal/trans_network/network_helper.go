@@ -7,7 +7,7 @@ import (
 	"log"
 
 	"apron.network/gateway-p2p/internal"
-	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p/core/network"
 )
 
 // WriteBytesViaStream writes data byte into network stream.

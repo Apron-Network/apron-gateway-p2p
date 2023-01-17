@@ -11,9 +11,9 @@ import (
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/models"
 	"github.com/fasthttp/websocket"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/protocol"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
 )

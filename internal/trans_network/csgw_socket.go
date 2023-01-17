@@ -10,7 +10,7 @@ import (
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/models"
 	"github.com/google/uuid"
-	"github.com/libp2p/go-libp2p-core/protocol"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"google.golang.org/protobuf/proto"
 )
 
