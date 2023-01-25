@@ -4,4 +4,4 @@
 .vscode/
 sync.sh
 
-./bin/
+bin/
