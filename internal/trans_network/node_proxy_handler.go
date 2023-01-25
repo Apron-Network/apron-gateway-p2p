@@ -185,12 +185,13 @@ func (n *Node) ProxySocketInitReqHandler(s network.Stream) {
 		serviceSocketConn, err := net.Dial("tcp", socketServiceUrl)
 		internal.CheckError(err)
 
-		// TODO: Get request ID and create mapping
 		n.serviceSocketConns[socketInitReq.RequestId] = serviceSocketConn
+		n.logger.Sugar().Infof("socket service connection %s saved", socketInitReq.RequestId)
 
 		// create stream with CSGW for response data
 		respStream, err := (*n.Host).NewStream(context.Background(), csgwPeerId, protocol.ID(ProxySocketDataFromServiceSide))
 
+		// Create reader goroutines for socket service, and forward service data back with request id in respStream
 		go func() {
 			serverReader := bufio.NewReader(serviceSocketConn)
 			buf := make([]byte, 4096)
@@ -230,7 +231,7 @@ func (n *Node) ProxySocketDataHandler(s network.Stream) {
 			//n.logger.Sugar().Infof("ProxySocketDataHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
 
 			if s.Protocol() == protocol.ID(ProxySocketDataFromClientSide) {
-				n.logger.Sugar().Infof("ProxyDataFromClientSideHandler: Send data to service\n")
+				n.logger.Sugar().Infof("ProxyDataFromClientSideHandler: Send data to service")
 				//n.logger.Sugar().Infof("Request data: %+q\n", proxyData.RawData)
 				_, err := n.serviceSocketConns[proxyData.RequestId].Write(proxyData.RawData)
 				internal.CheckError(err)
@@ -241,7 +242,9 @@ func (n *Node) ProxySocketDataHandler(s network.Stream) {
 				n.logger.Sugar().Infof("ProxyDataFromServiceHandler: Send data to client\n")
 				_, err = n.clientSocketConns[proxyData.RequestId].Write(proxyData.RawData)
 				internal.CheckError(err)
-				n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, false)
+
+				// TODO: Record socket usage data is not implemented yet
+				//n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, false)
 			} else {
 				panic(errors.New(fmt.Sprintf("wrong protocol: %s", s.Protocol())))
 			}
