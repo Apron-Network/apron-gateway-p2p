@@ -74,7 +74,7 @@ func sendAndReceiveData(conn net.Conn) {
 		}
 	}(conn)
 
-	// Write data repeatly
+	// Write data repeatedly
 	go func(c net.Conn) {
 		for {
 			writeCnt, err := c.Write([]byte("hello"))
