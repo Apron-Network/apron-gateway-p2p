@@ -14,8 +14,8 @@ build: $(OUTPUT_BINS)
 internal/models/%.pb.go: proto/%.proto
 	protoc --proto_path=proto --go_out=internal/models --go_opt=paths=source_relative $<
 
-bin/%: cmd/%/main.go $(GO_SOURCES)
-	go build -o $@ $<
+bin/%: ./cmd/%/main.go $(GO_SOURCES)
+	go build -o $@ ./$(shell dirname $<)
 
 test:
 	go test -v -cover ./...
