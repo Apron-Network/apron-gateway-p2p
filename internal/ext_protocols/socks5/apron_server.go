@@ -6,88 +6,169 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 
-	"github.com/kelindar/binary"
+	"apron.network/gateway-p2p/internal"
+	"apron.network/gateway-p2p/internal/models"
+	"apron.network/gateway-p2p/internal/trans_network"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
+
+// TODO: Currently the client side agent and service side agent are put in single struct, will refactor to separated structs
 
 type ApronServerMode uint8
 
 const (
-	ClientSideMode ApronServerMode = iota
-	ServerSideMode
+	ClientAgentMode ApronServerMode = iota
+	ServerAgentMode
 )
 
-type ApronServer struct {
-	config *Config
-	mode   ApronServerMode
+type ApronAgentServerConfig struct {
+	Mode ApronServerMode
+
+	// Saves client or service side gateway address based on different mode
+	RestMgmtAddr string
+	SocketAddr   string
+
+	// Unify id for the agent, for service side agent, this will be used to register service to SSGW
+	AgentId string
+
+	// Agent service listen address
+	ListenAddr string
 }
 
-func NewApronServer(conf *Config, mode ApronServerMode) (*ApronServer, error) {
+type ApronAgentServer struct {
+	socks5Config *Config
+	agentConfig  *ApronAgentServerConfig
+
+	logger *zap.Logger
+}
+
+func NewApronAgentServer(socksConf *Config, agentConf *ApronAgentServerConfig, logger *zap.Logger) (*ApronAgentServer, error) {
 	// TODO: AuthMethods is ignored currently
 	// TODO: Rule set is ignored currently
 
 	// Ensure we have a DNS resolver
-	if conf.Resolver == nil {
-		conf.Resolver = DNSResolver{}
+	if socksConf.Resolver == nil {
+		socksConf.Resolver = DNSResolver{}
 	}
 
-	if conf.Logger == nil {
+	if socksConf.Logger == nil {
 		logger, err := zap.NewProduction()
 		if err != nil {
 			return nil, err
 		}
-		conf.Logger = logger
+		socksConf.Logger = logger
 	}
 
-	server := &ApronServer{
-		config: conf,
-		mode:   mode,
+	server := &ApronAgentServer{
+		socks5Config: socksConf,
+		agentConfig:  agentConf,
+		logger:       logger,
 	}
 
 	return server, nil
 }
 
-func (s *ApronServer) ListenAndServe(networkType, addr string) error {
-	l, err := net.Listen(networkType, addr)
+func (s *ApronAgentServer) ListenAndServe(networkType string) error {
+	l, err := net.Listen(networkType, s.agentConfig.ListenAddr)
 	if err != nil {
-		s.config.Logger.Error("listen on addr error", zap.Error(err), zap.String("addr", addr))
+		s.logger.Error("listen on addr error", zap.Error(err), zap.String("addr", s.agentConfig.ListenAddr))
 		return err
 	}
 
 	for {
-		conn, err := l.Accept()
+		connWithClientOrService, err := l.Accept()
 		if err != nil {
-			s.config.Logger.Error("accept connection error", zap.Error(err), zap.String("addr", addr))
+			s.logger.Error("accept connection error", zap.Error(err), zap.String("addr", s.agentConfig.ListenAddr))
 			return err
 		}
-		s.config.Logger.Sugar().Infof("accept connection on %s, mode: %+v, client addr: %+v", addr, s.mode, conn.RemoteAddr())
+		s.logger.Sugar().Infof("accept connection on %s, mode: %+v, client addr: %+v", s.agentConfig.ListenAddr, s.agentConfig.Mode, connWithClientOrService.RemoteAddr())
 
-		go s.ServeConnection(conn)
+		err = s.prepareAgent(s.agentConfig.ListenAddr)
+		internal.CheckError(err)
+
+		go func() {
+			err := s.serveConnection(connWithClientOrService)
+			internal.CheckError(err)
+		}()
 	}
 }
 
-func (s *ApronServer) ServeConnection(conn net.Conn) error {
-	switch s.mode {
-	case ClientSideMode:
-		initRequest, err := s.prepareApronInitRequest(conn)
+// prepareAgent prepares required steps for starting agent service
+// ClientSideAgent:
+// ServerSideAgent:
+//   - Register serverSideAgent to SSGW
+func (s *ApronAgentServer) prepareAgent(listenAddr string) error {
+	switch s.agentConfig.Mode {
+	case ClientAgentMode:
+		s.logger.Sugar().Info("client agent has no prepare task currently")
+	case ServerAgentMode:
+		s.logger.Sugar().Info("server agent prepare task: register agent to SSGW")
+		newServiceRequest := models.ApronService{
+			Id:   s.agentConfig.AgentId,
+			Name: s.agentConfig.AgentId,
+			Providers: []*models.ApronServiceProvider{{
+				Id:      s.agentConfig.AgentId,
+				Name:    s.agentConfig.AgentId,
+				BaseUrl: listenAddr,
+				Schema:  "tcp",
+			}},
+		}
+		respBytes, err := internal.RegisterServiceToSSGW(s.agentConfig.RestMgmtAddr, newServiceRequest)
 		if err != nil {
-			s.config.Logger.Error("prepare init request error", zap.Error(err))
+			s.logger.Panic("Register service error", zap.Error(err))
+			return err
+		} else {
+			s.logger.Sugar().Infof("Register service resp: %q", respBytes)
+		}
+	}
+
+	return nil
+}
+
+// serveConnection is invoked after agent is prepared.
+// For client side mode, the request sent from client contains socks5 header data, and those steps will be executed sequentially:
+// 1. Read greeting message, and send NoAuth response (TODO: embed serviceId and userId in request URL)
+// 2. Get `version` and `cmd` in next request, verify those are supported flags
+// 3. Create ApronInitRequest
+func (s *ApronAgentServer) serveConnection(connWithClientOrService net.Conn) error {
+	switch s.agentConfig.Mode {
+	case ClientAgentMode:
+		initRequest, err := s.buildCaInitRequest(connWithClientOrService)
+		if err != nil {
+			s.logger.Error("prepare init request error", zap.Error(err))
 			return err
 		}
 
-		initRequestByte, err := binary.Marshal(initRequest)
+		// Connect to CSGW with ApronSocketInitRequest
+		// TODO: Parse client request and get real service ID
+		var serviceId string
+		serviceId, found := os.LookupEnv("APRON_SOCKS_SERVICE_ID")
+		if !found {
+			serviceId = "apron_hello_socks5"
+		}
+
+		connWithCsgw, err := net.Dial("tcp", s.agentConfig.SocketAddr)
 		if err != nil {
-			s.config.Logger.Error("marshal init requst error", zap.Error(err))
 			return err
 		}
 
-		s.config.Logger.Debug("send init request to CSGW", zap.Any("init_request", initRequest))
-		*s.config.MsgCh <- initRequestByte
-	case ServerSideMode:
-		s.config.Logger.Debug("serve int ServerSideMode")
-		defer conn.Close()
-		reader := bufio.NewReader(conn)
+		socketInitRequest := models.ApronSocketInitRequest{ServiceId: serviceId}
+		requestBytes, _ := proto.Marshal(&socketInitRequest)
+		trans_network.WriteBytesViaStream(connWithCsgw, requestBytes)
+
+		// Build initRequest for socks5 connection
+		// Note: the following package will be sent via SocketData stream, which will be parsed at service agent side,
+		// so protocol specified types are requied here.
+
+		s.logger.Debug("send init request to CSGW", zap.Any("init_request", initRequest))
+
+	case ServerAgentMode:
+		s.logger.Debug("Agent int ServerAgentMode")
+		defer connWithClientOrService.Close()
+		reader := bufio.NewReader(connWithClientOrService)
 
 		// TODO: echo server for testing
 		for {
@@ -102,30 +183,30 @@ func (s *ApronServer) ServeConnection(conn net.Conn) error {
 			fmt.Printf("request: %q", bytes)
 
 			line := fmt.Sprintf("response: %q", bytes)
-			conn.Write([]byte(line))
+			connWithClientOrService.Write([]byte(line))
 		}
 
 		// TODO: TODO: Check how ssgw send data to target agent, then write code here to parse init request
 
 		// Parse ApronInitRequest
-		// TODO: Listen to s.config.MsgCh, then decode the ApronInitRequest first
+		// TODO: Listen to s.socks5Config.MsgCh, then decode the ApronInitRequest first
 	}
 
 	return nil
 }
 
-// handleGreetingPackage sent from client side, the greeting package contains version and auth method accepted by client
+// handleClientGreetingPackage sent from client side, the greeting package contains version and auth method accepted by client
 // Currently the server only supports NoAuth, which will be updated later
-func (s *ApronServer) handleGreetingPackage(reader *bufio.Reader, conn net.Conn) error {
+func (s *ApronAgentServer) handleClientGreetingPackage(reader *bufio.Reader, conn net.Conn) error {
 	err := s.validateVersion(reader)
 	if err != nil {
-		s.config.Logger.Error(err.Error())
+		s.logger.Error(err.Error())
 		return err
 	}
 
 	numAuthMethods, err := reader.ReadByte()
 	if err != nil {
-		s.config.Logger.Error("read count of auth method error", zap.Error(err))
+		s.logger.Error("read count of auth method error", zap.Error(err))
 		return err
 	}
 
@@ -138,30 +219,33 @@ func (s *ApronServer) handleGreetingPackage(reader *bufio.Reader, conn net.Conn)
 	return err
 }
 
-func (s *ApronServer) validateVersion(reader *bufio.Reader) error {
+func (s *ApronAgentServer) validateVersion(reader *bufio.Reader) error {
 	version, err := reader.ReadByte()
 	if err != nil {
-		s.config.Logger.Error("read socks version error", zap.Error(err))
+		s.logger.Error("read socks version error", zap.Error(err))
 		return err
 	}
 
 	if version != socks5Version {
 		err = fmt.Errorf("invalid socks version: %d", version)
-		s.config.Logger.Error(err.Error())
+		s.logger.Error(err.Error())
 		return err
 	}
 
 	return nil
 }
 
-// prepareApronInitRequest try to get version and command from request sent from socks5 client,
+// buildCaInitRequest builds init request from client agent based on greeting package from client, which contains those logics:
+// * Validate version for the request and return error to client if not match
+// * Return NoAuth
+// try to get version and command from request sent from socks5 client,
 // then build ApronSocks5ConnectRequest and return.
-func (s *ApronServer) prepareApronInitRequest(conn net.Conn) (*ApronSocks5ConnectRequest, error) {
+func (s *ApronAgentServer) buildCaInitRequest(conn net.Conn) (*ApronSocks5ConnectRequest, error) {
 	reader := bufio.NewReader(conn)
 
-	err := s.handleGreetingPackage(reader, conn)
+	err := s.handleClientGreetingPackage(reader, conn)
 	if err != nil {
-		s.config.Logger.Error("handle greeting package error", zap.Error(err))
+		s.logger.Error("handle greeting package error", zap.Error(err))
 		return nil, err
 	}
 
@@ -173,13 +257,13 @@ func (s *ApronServer) prepareApronInitRequest(conn net.Conn) (*ApronSocks5Connec
 	buf := make([]byte, 3)
 	readNum, err := reader.Read(buf)
 	if err != nil {
-		s.config.Logger.Error("read client connection request package error", zap.Error(err))
+		s.logger.Error("read client connection request package error", zap.Error(err))
 		return nil, err
 	}
 
 	if readNum != 3 {
 		err = errors.New("read size not equals 3")
-		s.config.Logger.Error("read client connection request package error", zap.Error(err))
+		s.logger.Error("read client connection request package error", zap.Error(err))
 		return nil, err
 	}
 

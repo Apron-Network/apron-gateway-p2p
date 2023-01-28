@@ -97,7 +97,7 @@ func (s *Server) ServeConnection(conn net.Conn, apronMode bool) error {
 	//	// 4. Wait for response
 	//
 	//	// Build init request, which will be sent to target server and check whether it can be served
-	//	initRequest, err := s.prepareApronInitRequest(conn)
+	//	initRequest, err := s.buildCaInitRequest(conn)
 	//	internal.CheckError(err)
 	//
 	//	initRequestBytes, err := binary.Marshal(initRequest)
@@ -112,7 +112,7 @@ func (s *Server) ServeConnection(conn net.Conn, apronMode bool) error {
 	//	reqBytes, err := proto.Marshal(reqData)
 	//	internal.CheckError(err)
 	//
-	//	*s.config.MsgCh <- reqBytes
+	//	*s.socks5Config.MsgCh <- reqBytes
 	//}
 	defer conn.Close()
 	request, err := s.prepareRequest(conn)
