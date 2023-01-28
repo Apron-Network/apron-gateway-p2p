@@ -43,7 +43,8 @@ func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 		// Get service detail from local services list and fill missing fields of request
 		serviceDetail := n.services[proxyReq.ServiceId]
 		n.logger.Sugar().Infof("Service detail: %#v\n", serviceDetail)
-		reqToService := proxyReq.BuildHttpRequestToService(&clientReqDetail, httpReq, &serviceDetail)
+		reqToService, err := proxyReq.BuildHttpRequestToService(&clientReqDetail, httpReq, &serviceDetail)
+		internal.CheckError(err)
 		n.logger.Sugar().Infof("Request to service: %#v\n", reqToService)
 		defer fasthttp.ReleaseRequest(reqToService)
 
@@ -213,7 +214,6 @@ func (n *Node) ProxySocketInitReqHandler(s network.Stream) {
 		}()
 		select {}
 	}
-
 }
 
 // ProxySocketDataHandler will be used to process socket data from client or service side

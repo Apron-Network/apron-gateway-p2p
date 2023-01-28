@@ -1,15 +1,15 @@
 package models
 
 import (
-	"apron.network/gateway-p2p/internal"
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/valyala/fasthttp"
 	"log"
 	"net/url"
 	"path"
 	"strings"
+
+	"github.com/valyala/fasthttp"
 )
 
 // RecoverClientRequest recover request serialized from client side to fasthttp request
@@ -24,11 +24,13 @@ func (svrReq *ApronServiceRequest) RecoverClientRequest() (*fasthttp.Request, er
 	return httpReq, nil
 }
 
-func (svrReq *ApronServiceRequest) BuildHttpRequestToService(reqDetail *RequestDetail, httpReq *fasthttp.Request, serviceDetail *ApronService) *fasthttp.Request {
+func (svrReq *ApronServiceRequest) BuildHttpRequestToService(reqDetail *RequestDetail, httpReq *fasthttp.Request, serviceDetail *ApronService) (*fasthttp.Request, error) {
 	// TODO: LB and multiple providers will be updated later
 	provider := serviceDetail.Providers[0]
 	serviceUrl, err := url.Parse(fmt.Sprintf("%s://%s", provider.GetSchema(), provider.GetBaseUrl()))
-	internal.CheckError(err)
+	if err != nil {
+		return nil, err
+	}
 
 	var clientSideQueryArgs fasthttp.Args
 	httpReq.URI().QueryArgs().CopyTo(&clientSideQueryArgs)
@@ -41,7 +43,7 @@ func (svrReq *ApronServiceRequest) BuildHttpRequestToService(reqDetail *RequestD
 		httpReq.URI().QueryArgs().AddBytesKV(k, v)
 	})
 
-	return httpReq
+	return httpReq, nil
 }
 
 func ExtractServiceInfoFromRequestID(requestId string) (string, string) {
