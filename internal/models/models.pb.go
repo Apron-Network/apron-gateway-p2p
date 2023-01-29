@@ -797,7 +797,7 @@ func (x *NodeReport) GetRecords() []*ApronUsageRecord {
 	return nil
 }
 
-// ApronSocketInitRequest is sent from client side to ClientSideGateway, which contains service_id the client required, and user_id for charging.
+// ApronSocketInitRequest is sent from client side to ClientSideGateway, which contains service_id the client required, and user_id for billing.
 // After receiving this request, ClientSideGateway will try to connect with ServiceSideGateway from its services list.
 type ApronSocketInitRequest struct {
 	state         protoimpl.MessageState
