@@ -2,6 +2,7 @@ package socks5
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -222,6 +223,20 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 			internal.CheckError(err)
 
 			s.logger.Info("got ext service data", zap.Any("service_data", serviceData))
+
+			if serviceData.ServiceName != socks5ServiceName {
+				s.logger.Panic("wrong service name", zap.Any("service_data", serviceData))
+				return errors.New("incorrect service name")
+			}
+
+			switch serviceData.ContentType {
+			case socks5ConnectMessage:
+				s.logger.Info("received socks5ConnectMessage")
+				socksConnectRequest := ApronSocks5ConnectRequest{}
+				err := binary.Unmarshal(serviceData.Content, &socksConnectRequest)
+				internal.CheckError(err)
+				s.logger.Info("parsed connect message detail", zap.Any("connect_request", socksConnectRequest))
+			}
 		}
 
 		for {
