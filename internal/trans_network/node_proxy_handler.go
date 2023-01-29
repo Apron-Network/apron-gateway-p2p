@@ -15,6 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/valyala/fasthttp"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -231,15 +232,17 @@ func (n *Node) ProxySocketDataHandler(s network.Stream) {
 			//n.logger.Sugar().Infof("ProxySocketDataHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
 
 			if s.Protocol() == protocol.ID(ProxySocketDataFromClientSide) {
-				n.logger.Sugar().Infof("ProxyDataFromClientSideHandler: Send data to service")
-				//n.logger.Sugar().Infof("Request data: %+q\n", proxyData.RawData)
-				_, err := n.serviceSocketConns[proxyData.RequestId].Write(proxyData.RawData)
-				internal.CheckError(err)
+				// Got data sent from CSGW. The data is ApronServiceData package,
+				// and the RawData should be ExtServiceData, which will be processed in agent side
+				n.logger.Info("ProxyDataFromClientSideHandler: got data from CSGW", zap.String("request_id", proxyData.RequestId))
+
+				WriteBytesViaStream(n.serviceSocketConns[proxyData.RequestId], proxyData.RawData)
+				n.logger.Info("data sent to service agent / service", zap.String("request_id", proxyData.RequestId))
 
 				// TODO: Record socket usage data is not implemented yet
 				//n.serviceUsageRecordManager.RecordUsageFromSocket(proxyData, true)
 			} else if s.Protocol() == protocol.ID(ProxySocketDataFromServiceSide) {
-				n.logger.Sugar().Infof("ProxyDataFromServiceHandler: Send data to client\n")
+				n.logger.Info("ProxyDataFromServiceHandler: Send data to client")
 				_, err = n.clientSocketConns[proxyData.RequestId].Write(proxyData.RawData)
 				internal.CheckError(err)
 

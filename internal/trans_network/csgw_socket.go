@@ -11,6 +11,7 @@ import (
 	"apron.network/gateway-p2p/internal/models"
 	"github.com/google/uuid"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -46,10 +47,13 @@ func (n *Node) StartSocketForwardService() {
 			err = proto.Unmarshal(initRequestBytes, &initRequest)
 			internal.CheckError(err)
 
+			n.logger.Info("parsed apron socket init request", zap.Any("init_request", initRequest))
+
 			n.mutex.Lock()
 			servicePeerId, found := n.servicePeerMapping[initRequest.ServiceId]
 			if !found {
 				n.mutex.Unlock()
+				n.logger.Error("CSGW: Service not found", zap.Any("init_request", initRequest))
 				conn.Write([]byte("ClientSideGateway: Service not found"))
 				return
 			}
@@ -57,6 +61,7 @@ func (n *Node) StartSocketForwardService() {
 			service, found := n.services[initRequest.ServiceId]
 			if !found {
 				n.mutex.Unlock()
+				n.logger.Error("CSGW: Service data is missing", zap.Any("init_request", initRequest))
 				// Service is in the peer mapping but not in services list, internal error
 				conn.Write([]byte("ClientSideGateway: Service data missing, contract help"))
 				return
@@ -64,6 +69,7 @@ func (n *Node) StartSocketForwardService() {
 			n.mutex.Unlock()
 
 			if len(service.Providers) < 1 {
+				n.logger.Error("CSGW: Service data error", zap.Any("init_request", initRequest))
 				conn.Write([]byte("ClientSideGateway: Service data error, contract help"))
 				return
 			}
