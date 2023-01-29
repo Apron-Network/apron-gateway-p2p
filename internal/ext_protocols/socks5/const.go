@@ -11,4 +11,6 @@ const (
 
 	// socks5ServiceName indicates the service name, which will be set in data sent to Apron network and target service
 	socks5ServiceName = "socks5"
+
+	socks5ConnectMessage = 1
 )
