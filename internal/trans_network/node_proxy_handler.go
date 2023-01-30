@@ -160,61 +160,62 @@ func (n *Node) ProxyHttpRespHandler(s network.Stream) {
 
 // ProxySocketInitReqHandler will be used to init socket connection to service
 func (n *Node) ProxySocketInitReqHandler(s network.Stream) {
-	dataCh := make(chan []byte)
-	go ReadBytesViaStream(s, dataCh)
+	// Use sync read here since the connection to service should be created before processing proxy data
+	dataBuf, err := ReadOneFrameDataFromStream(s)
+	internal.CheckError(err)
 
-	select {
-	case proxyReqBytes := <-dataCh:
-		socketInitReq := &models.ApronSocketInitRequest{}
-		err := proto.Unmarshal(proxyReqBytes, socketInitReq)
-		internal.CheckError(err)
-		n.logger.Sugar().Infof("Read init socket request from stream: %s\n", socketInitReq)
+	socketInitReq := &models.ApronSocketInitRequest{}
+	err = proto.Unmarshal(dataBuf, socketInitReq)
+	internal.CheckError(err)
+	n.logger.Sugar().Infof("Read init socket request from stream: %s\n", socketInitReq)
 
-		csgwPeerId, err := peer.Decode(socketInitReq.PeerId)
-		internal.CheckError(err)
+	csgwPeerId, err := peer.Decode(socketInitReq.PeerId)
+	internal.CheckError(err)
 
-		n.logger.Sugar().Infof("ClientSideGateway PeerID: %+v\n", csgwPeerId)
+	n.logger.Sugar().Infof("ClientSideGateway PeerID: %+v\n", csgwPeerId)
 
-		n.serviceUsageRecordManager.RecordUsageFromSocket(socketInitReq)
+	n.serviceUsageRecordManager.RecordUsageFromSocket(socketInitReq)
 
-		// Get service detail from local services list and fill missing fields of request
-		serviceDetail := n.services[socketInitReq.ServiceId]
-		n.logger.Sugar().Infof("Service detail: %#v", serviceDetail)
+	// Get service detail from local services list and fill missing fields of request
+	serviceDetail := n.services[socketInitReq.ServiceId]
+	n.logger.Info("service detail saved", zap.Any("service_detail", serviceDetail))
 
-		socketServiceUrl := serviceDetail.Providers[0].GetBaseUrl()
-		n.logger.Sugar().Infof("Connect to socket service URL: %s", socketServiceUrl)
+	socketServiceUrl := serviceDetail.Providers[0].GetBaseUrl()
+	n.logger.Info("connecting to socket service URL",
+		zap.String("socket_service_url", socketServiceUrl),
+		zap.Any("service_socket_conn", n.serviceSocketConns),
+	)
 
-		serviceSocketConn, err := net.Dial("tcp", socketServiceUrl)
-		internal.CheckError(err)
+	serviceSocketConn, err := net.Dial("tcp", socketServiceUrl)
+	internal.CheckError(err)
 
-		n.serviceSocketConns[socketInitReq.RequestId] = serviceSocketConn
-		n.logger.Sugar().Infof("socket service connection %s saved", socketInitReq.RequestId)
+	n.serviceSocketConns[socketInitReq.RequestId] = serviceSocketConn
+	n.logger.Info("socket service connection established", zap.String("request_id", socketInitReq.RequestId))
 
-		// create stream with CSGW for response data
-		respStream, err := (*n.Host).NewStream(context.Background(), csgwPeerId, protocol.ID(ProxySocketDataFromServiceSide))
+	// create stream with CSGW for response data
+	respStream, err := (*n.Host).NewStream(context.Background(), csgwPeerId, protocol.ID(ProxySocketDataFromServiceSide))
 
-		// Create reader goroutines for socket service, and forward service data back with request id in respStream
-		go func() {
-			serverReader := bufio.NewReader(serviceSocketConn)
-			buf := make([]byte, 4096)
-			for {
-				readSize, err := serverReader.Read(buf)
-				internal.CheckError(err)
+	// Create reader goroutines for socket service, and forward service data back with request id in respStream
+	go func() {
+		serverReader := bufio.NewReader(serviceSocketConn)
+		buf := make([]byte, 4096)
+		for {
+			readSize, err := serverReader.Read(buf)
+			internal.CheckError(err)
 
-				n.logger.Sugar().Infof("ServiceSideGateway: Received message from service: %q", buf[:readSize])
+			n.logger.Sugar().Infof("ServiceSideGateway: Received message from service: %q", buf[:readSize])
 
-				forwardData := &models.ApronServiceData{
-					RequestId: socketInitReq.RequestId,
-					RawData:   buf[:readSize],
-				}
-
-				forwardDataBytes, err := proto.Marshal(forwardData)
-				internal.CheckError(err)
-				WriteBytesViaStream(respStream, forwardDataBytes)
+			forwardData := &models.ApronServiceData{
+				RequestId: socketInitReq.RequestId,
+				RawData:   buf[:readSize],
 			}
-		}()
-		select {}
-	}
+
+			forwardDataBytes, err := proto.Marshal(forwardData)
+			internal.CheckError(err)
+			WriteBytesViaStream(respStream, forwardDataBytes)
+		}
+	}()
+	select {}
 }
 
 // ProxySocketDataHandler will be used to process socket data from client or service side

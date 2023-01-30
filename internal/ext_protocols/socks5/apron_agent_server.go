@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/models"
@@ -154,6 +155,11 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 			return err
 		}
 		s.logger.Info("connection to CSGW established and ApronSocketInitRequest message sent")
+
+		// TODO: the sleep here is to avoid processing data request in advanced of init request,
+		// TODO: since the init request handler should establish socket connection between service / agent side.
+		// TODO: should be replaced with some notification strategies
+		time.Sleep(100 * time.Microsecond)
 
 		socksConnectRequest, err := s.buildSocks5ConnectRequest(connWithClientOrSsgw)
 		if err != nil {
