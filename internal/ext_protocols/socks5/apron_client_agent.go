@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"io"
+	"log"
 	"net"
 	"os"
 
@@ -157,18 +158,39 @@ func (s *ApronAgentServer) connectToCsgwAndSendInitRequest() error {
 }
 
 func (s *ApronAgentServer) proxyDataFromClient(clientConn net.Conn) {
-	clientDataBuf := make([]byte, 4096)
 
+	// Proxy data from client to CSGW
 	go func(clientC, csgwC net.Conn) {
+		buf := make([]byte, 4096)
 		for {
 			// Read client message
 			reader := bufio.NewReader(clientC)
-			readCnt, err := reader.Read(clientDataBuf)
+			readCnt, err := reader.Read(buf)
 			internal.CheckError(err)
 
-			s.logger.Info("CSGW: got client data", zap.ByteString("resp_content", clientDataBuf[:readCnt]))
+			s.logger.Info("CA: got client data", zap.ByteString("resp_content", buf[:readCnt]))
+		}
+	}(clientConn, s.agentConfig.RemoteSocketConn)
 
-			// Pack data into ApronData
+	// Proxy data from CSGW to Client
+	go func(clientC, csgwC net.Conn) {
+		buf := make([]byte, 4096)
+		for {
+			// Read client message
+			reader := bufio.NewReader(csgwC)
+			readCnt, err := reader.Read(buf)
+			internal.CheckError(err)
+
+			serviceData := models.ExtServiceData{}
+			err = proto.Unmarshal(buf[:readCnt], &serviceData)
+			internal.CheckError(err)
+
+			s.logger.Info("CA: got CSGW data", zap.ByteString("resp_content_byte", buf[:readCnt]), zap.Any("service_data", serviceData))
+			log.Printf("content bytes: %+v\n", serviceData.Content)
+
+			writeCnt, err := clientC.Write(serviceData.Content)
+			internal.CheckError(err)
+			s.logger.Info("written data to client", zap.Int("written_data_size", writeCnt))
 		}
 	}(clientConn, s.agentConfig.RemoteSocketConn)
 

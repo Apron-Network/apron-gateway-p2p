@@ -2,11 +2,15 @@ package socks5
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"time"
+
+	builtinBinary "encoding/binary"
 
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/models"
@@ -29,7 +33,7 @@ type ApronAgentServerConfig struct {
 	Mode ApronServerMode
 
 	// Saves client or service side gateway address based on different mode
-	RestMgmtAddr     string
+	RestMgmtAddr string
 
 	// RemoteSocketAddr saves remote service this agent will connect to
 	// in client agent mode, this address is CSGW socket proxy listen address
@@ -135,11 +139,6 @@ func (s *ApronAgentServer) prepareAgent(listenAddr string) error {
 			s.logger.Sugar().Infof("Register service resp: %q", respBytes)
 		}
 
-		// Connect to service
-		s.agentConfig.RemoteSocketConn, err = net.Dial("tcp", s.agentConfig.RemoteSocketAddr)
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -226,10 +225,13 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 
 		s.logger.Debug("message sent to CSGW", zap.Int("write_cnt", writeCnt))
 
+		// Write success to client for getting more data
+		// TODO: Change to use some message sent from SSGW/SA
+		connWithClientOrSsgw.Write([]byte{5, 0, 0, 1, 0, 0, 0, 0, 0, 0})
+
 		go s.proxyDataFromClient(connWithClientOrSsgw)
 	case ServerAgentMode:
 		s.logger.Debug("ServerAgentMode")
-		defer connWithClientOrSsgw.Close()
 		reader := bufio.NewReader(connWithClientOrSsgw)
 
 		dataCh := make(chan []byte)
@@ -255,29 +257,37 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 				err := binary.Unmarshal(serviceData.Content, &socksConnectRequest)
 				internal.CheckError(err)
 				s.logger.Info("parsed connect message detail", zap.Any("connect_request", socksConnectRequest))
+
+				connWithSocks5Service, err := s.connectToSocks5Service(&socksConnectRequest)
+				internal.CheckError(err)
+
+				go func(conn net.Conn) {
+					for {
+						buf := make([]byte, 4096)
+						reader := bufio.NewReader(conn)
+
+						readerCnt, err := reader.Read(buf)
+						internal.CheckError(err)
+						s.logger.Info("got response from service",
+							zap.Binary("socks5_resp", buf[:readerCnt]),
+							zap.Int("read_size", readerCnt),
+						)
+						log.Printf("service resp: %+v\n", buf[:readerCnt])
+
+						// Package read data into ExtServiceData package and send back to SSGW
+						respData := models.ExtServiceData{
+							ServiceName: socks5ServiceName,
+							ContentType: 0,
+							Content:     buf[:readerCnt],
+						}
+						respDataBytes, err := proto.Marshal(&respData)
+						internal.CheckError(err)
+
+						connWithClientOrSsgw.Write(respDataBytes)
+					}
+				}(connWithSocks5Service)
 			}
 		}
-
-		for {
-			// read client request data
-			bytes, err := reader.ReadBytes(byte('\n'))
-			if err != nil {
-				if err != io.EOF {
-					fmt.Println("failed to read data, err:", err)
-				}
-				return err
-			}
-			s.logger.Info("request")
-			fmt.Printf("request: %q", bytes)
-
-			line := fmt.Sprintf("response: %q", bytes)
-			connWithClientOrSsgw.Write([]byte(line))
-		}
-
-		// TODO: TODO: Check how ssgw send data to target agent, then write code here to parse init request
-
-		// Parse ApronInitRequest
-		// TODO: Listen to s.socks5Config.MsgCh, then decode the ApronInitRequest first
 	}
 
 	return nil
@@ -297,4 +307,76 @@ func (s *ApronAgentServer) validateVersion(reader *bufio.Reader) error {
 	}
 
 	return nil
+}
+
+func (s *ApronAgentServer) connectToSocks5Service(apronSocksConnectRequest *ApronSocks5ConnectRequest) (net.Conn, error) {
+	// Connect to service
+	conn, err := net.Dial("tcp", s.agentConfig.RemoteSocketAddr)
+	if err != nil {
+		s.logger.Panic("failed to connect service", zap.String("service_addr", s.agentConfig.RemoteSocketAddr))
+		return nil, err
+	}
+
+	// Send SOCKS5 authentication methods
+	authMethods := []uint8{NoAuth}
+	if _, err := conn.Write([]byte{socks5Version, uint8(len(authMethods)), NoAuth}); err != nil {
+		s.logger.Panic("failed to send NoAuth data")
+		return nil, err
+	}
+
+	// Receive SOCKS5 server response
+	authResponse := make([]byte, 2)
+	if _, err := io.ReadFull(conn, authResponse); err != nil {
+		s.logger.Panic("failed to receive authentication response", zap.ByteString("service_resp", authResponse))
+		return nil, errors.New("failed to receive authentication response")
+	}
+
+	if authResponse[0] != socks5Version || authResponse[1] != NoAuth {
+		s.logger.Panic("unexpected authentication response", zap.ByteString("service_resp", authResponse))
+		return nil, errors.New("unexpected authentication response")
+	}
+
+	// Send SOCKS5 connect request
+	request := &bytes.Buffer{}
+	request.WriteByte(socks5Version)
+	request.WriteByte(socks5ConnectCommand)
+	request.WriteByte(0) // Reserved
+	request.WriteByte(socks5Domain)
+	request.WriteByte(uint8(len(apronSocksConnectRequest.DestAddr)))
+	request.WriteString(apronSocksConnectRequest.DestAddr)
+	builtinBinary.Write(request, builtinBinary.BigEndian, uint16(80))
+	if _, err := conn.Write(request.Bytes()); err != nil {
+		s.logger.Panic("Failed to send connect request", zap.Error(err))
+		return nil, err
+	}
+
+	// Receive socks5 server response
+	response := make([]byte, 256)
+	if _, err := io.ReadFull(conn, response[:5]); err != nil {
+		s.logger.Panic("failed to receive connect response header", zap.Error(err))
+		return nil, err
+	}
+
+	if response[0] != socks5Version || response[1] != 0 {
+		s.logger.Panic("unexpected connect response:", zap.ByteString("resp_header", response[:2]))
+		return nil, err
+	}
+
+	addrType := response[3]
+	var addr string
+	switch addrType {
+	case socks5IPv4:
+		ip := net.IP(response[4:8])
+		addr = ip.String()
+	case socks5Domain:
+		domainLen := int(response[4])
+		addr = string(response[5 : 5+domainLen])
+	case socks5IPv6:
+		ip := net.IP(response[4:20])
+		addr = ip.String()
+	}
+	port := binary.BigEndian.Uint16(response[len(response)-2:])
+	s.logger.Info("connection established", zap.String("addr", addr), zap.Uint16("port", port))
+
+	return conn, nil
 }
