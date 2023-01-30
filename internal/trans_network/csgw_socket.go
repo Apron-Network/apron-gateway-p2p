@@ -118,7 +118,7 @@ func (n *Node) StartSocketForwardService() {
 					readSize, err := conn.Read(buf)
 					internal.CheckError(err)
 
-					n.logger.Sugar().Infof("Received data from client: %q", buf[:readSize])
+					n.logger.Info("CSGW: Received data from client", zap.Int("data_size", readSize))
 					serviceData := models.ApronServiceData{
 						RequestId: requestId,
 						RawData:   buf[:readSize],
@@ -126,6 +126,10 @@ func (n *Node) StartSocketForwardService() {
 
 					serviceDataBytes, err := proto.Marshal(&serviceData)
 					internal.CheckError(err)
+					n.logger.Info("CSGW: package data into ApronServiceData and send to SSGW",
+						zap.Int("data_size", len(serviceDataBytes)),
+						zap.String("stream_name", "ProxySocketDataFromClientSide"),
+					)
 					WriteBytesViaStream(clientSocketDataStream, serviceDataBytes)
 				}
 

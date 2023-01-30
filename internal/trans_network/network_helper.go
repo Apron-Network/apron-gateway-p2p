@@ -12,7 +12,6 @@ import (
 
 // WriteBytesViaStream writes data byte into network stream.
 // It will write the content length (uint64) first to tell the reader how many bytes are followed.
-// TODO: Check whether there are method to avoid writing data length first
 func WriteBytesViaStream(w io.Writer, data []byte) {
 	msgLen := len(data)
 	msgLenBytes := make([]byte, 8)
