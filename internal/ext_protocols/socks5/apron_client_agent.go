@@ -129,7 +129,7 @@ func (s *ApronAgentServer) buildSocks5ConnectRequest(conn net.Conn) (*ApronSocks
 
 // connectToCsgwAndSendInitRequest builds init ApronSocketInitRequest and sends to CSGW
 // Currently the only params sent is *serviceId*, which will be used to find related SSGW and establish connection
-func (s *ApronAgentServer) connectToCsgwAndSendInitRequest() (net.Conn, error) {
+func (s *ApronAgentServer) connectToCsgwAndSendInitRequest() error {
 	// Connect to CSGW and send ApronSocketInitRequest
 	// TODO: Parse client request and get real service ID
 	s.logger.Info(
@@ -144,18 +144,19 @@ func (s *ApronAgentServer) connectToCsgwAndSendInitRequest() (net.Conn, error) {
 
 	csgwConn, err := net.Dial("tcp", s.agentConfig.RemoteSocketAddr)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	s.logger.Debug("connection to CSGW established", zap.Any("csgw_conn", csgwConn))
+	s.agentConfig.RemoteSocketConn = csgwConn
 
 	socketInitRequest := models.ApronSocketInitRequest{ServiceId: serviceId}
 	requestBytes, _ := proto.Marshal(&socketInitRequest)
 	trans_network.WriteBytesViaStream(csgwConn, requestBytes)
 
-	return csgwConn, nil
+	return nil
 }
 
-func (s *ApronAgentServer) proxyDataFromClient(clientConn, csgwConn net.Conn) {
+func (s *ApronAgentServer) proxyDataFromClient(clientConn net.Conn) {
 	clientDataBuf := make([]byte, 4096)
 
 	go func(clientC, csgwC net.Conn) {
@@ -169,6 +170,6 @@ func (s *ApronAgentServer) proxyDataFromClient(clientConn, csgwConn net.Conn) {
 
 			// Pack data into ApronData
 		}
-	}(clientConn, csgwConn)
+	}(clientConn, s.agentConfig.RemoteSocketConn)
 
 }

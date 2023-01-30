@@ -36,6 +36,9 @@ type ApronAgentServerConfig struct {
 	// in server agent mode, this address is socket service listen address
 	RemoteSocketAddr string
 
+	// RemoteSocketConn saves connection between RemoteSocketAddr
+	RemoteSocketConn net.Conn
+
 	// Unify id for the agent, for service side agent, this will be used to register service to SSGW
 	AgentId string
 
@@ -131,6 +134,12 @@ func (s *ApronAgentServer) prepareAgent(listenAddr string) error {
 		} else {
 			s.logger.Sugar().Infof("Register service resp: %q", respBytes)
 		}
+
+		// Connect to service
+		s.agentConfig.RemoteSocketConn, err = net.Dial("tcp", s.agentConfig.RemoteSocketAddr)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -145,7 +154,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 	switch s.agentConfig.Mode {
 	case ClientAgentMode:
 		// Build initRequest for socks5 connection
-		csgwConn, err := s.connectToCsgwAndSendInitRequest()
+		err := s.connectToCsgwAndSendInitRequest()
 		if err != nil {
 			s.logger.Panic("connect to CSGW failed",
 				zap.Error(err),
@@ -203,7 +212,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 			return err
 		}
 
-		writeCnt, err := csgwConn.Write(requestSentToCsgwBytes)
+		writeCnt, err := s.agentConfig.RemoteSocketConn.Write(requestSentToCsgwBytes)
 		if err != nil {
 			s.logger.Panic("send packed service data failed",
 				zap.Error(err),
@@ -217,7 +226,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 
 		s.logger.Debug("message sent to CSGW", zap.Int("write_cnt", writeCnt))
 
-		go s.proxyDataFromClient(connWithClientOrSsgw, csgwConn)
+		go s.proxyDataFromClient(connWithClientOrSsgw)
 	case ServerAgentMode:
 		s.logger.Debug("ServerAgentMode")
 		defer connWithClientOrSsgw.Close()
