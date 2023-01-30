@@ -8,6 +8,9 @@ message ExtServiceData {
   // service_name is used for Apron, which indicates what service the package is from
   string service_name = 1;
 
+  // request_id used to identify connection with service in SA side
+  string request_id = 2;
+
   // content_type is used by service handler, to determine how to decode content field
   uint32 content_type = 10;
 

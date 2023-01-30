@@ -153,7 +153,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 	switch s.agentConfig.Mode {
 	case ClientAgentMode:
 		// Build initRequest for socks5 connection
-		err := s.connectToCsgwAndSendInitRequest()
+		requestId, err := s.connectToCsgwAndSendInitRequest()
 		if err != nil {
 			s.logger.Panic("connect to CSGW failed",
 				zap.Error(err),
@@ -196,6 +196,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 
 		packedSocks5ConnectMessage := models.ExtServiceData{
 			ServiceName: socks5ServiceName,
+			RequestId:   requestId,
 			ContentType: socks5ConnectMessage,
 			Content:     socksConnectRequestBytes,
 		}
@@ -229,7 +230,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 		// TODO: Change to use some message sent from SSGW/SA
 		connWithClientOrSsgw.Write([]byte{5, 0, 0, 1, 0, 0, 0, 0, 0, 0})
 
-		go s.proxyDataFromClient(connWithClientOrSsgw)
+		go s.proxyDataFromClient(connWithClientOrSsgw, requestId)
 	case ServerAgentMode:
 		s.logger.Debug("ServerAgentMode")
 		reader := bufio.NewReader(connWithClientOrSsgw)

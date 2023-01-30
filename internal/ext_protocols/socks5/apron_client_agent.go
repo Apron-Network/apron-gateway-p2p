@@ -145,19 +145,21 @@ func (s *ApronAgentServer) connectToCsgwAndSendInitRequest() error {
 
 	csgwConn, err := net.Dial("tcp", s.agentConfig.RemoteSocketAddr)
 	if err != nil {
-		return err
+		return "", err
 	}
 	s.logger.Debug("connection to CSGW established", zap.Any("csgw_conn", csgwConn))
 	s.agentConfig.RemoteSocketConn = csgwConn
 
-	socketInitRequest := models.ApronSocketInitRequest{ServiceId: serviceId}
+	requestId := fmt.Sprintf("%s.%s.%s", "shouldBeUid", serviceId, uuid.New().String())
+	socketInitRequest := models.ApronSocketInitRequest{ServiceId: serviceId, RequestId: requestId}
 	requestBytes, _ := proto.Marshal(&socketInitRequest)
 	trans_network.WriteBytesViaStream(csgwConn, requestBytes)
 
-	return nil
+	return requestId, nil
 }
 
-func (s *ApronAgentServer) proxyDataFromClient(clientConn net.Conn) {
+func (s *ApronAgentServer) proxyDataFromClient(clientConn net.Conn, requestId string) {
+	s.logger.Info("entering proxyDataFromClient function")
 
 	// Proxy data from client to CSGW
 	go func(clientC, csgwC net.Conn) {
