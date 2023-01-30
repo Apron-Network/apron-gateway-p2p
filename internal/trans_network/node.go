@@ -80,7 +80,12 @@ func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
 	usageRecordManager := models.UsageRecordManager{}
 	usageRecordManager.Init()
 
-	logger, _ := zap.NewProduction()
+	// TODO: change to singleton function and apply to all code
+	logEncoderConfig := zap.NewProductionEncoderConfig()
+	logEncoderConfig.TimeKey = "ts"
+	loggerConfig := zap.NewProductionConfig()
+	loggerConfig.EncoderConfig = logEncoderConfig
+	logger := zap.Must(loggerConfig.Build())
 	defer logger.Sync()
 
 	return &Node{

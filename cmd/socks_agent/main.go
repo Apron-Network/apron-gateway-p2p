@@ -13,7 +13,7 @@ import (
 var logger *zap.Logger
 
 func main() {
-	logger = zap.NewExample()
+	logger, _ = zap.NewProduction()
 	if len(os.Args) < 2 {
 		printMainUsage()
 		os.Exit(1)

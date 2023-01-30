@@ -99,7 +99,7 @@ func (n *Node) StartSocketForwardService() {
 			}
 
 			reqBytes, err := proto.Marshal(req)
-			n.logger.Sugar().Infof("Init socket request, req size: %d\n", reqBytes)
+			n.logger.Info("Init socket request", zap.Int("request_size", len(reqBytes)), zap.ByteString("req_bytes", reqBytes))
 			internal.CheckError(err)
 			WriteBytesViaStream(initSocketConnStream, reqBytes)
 
