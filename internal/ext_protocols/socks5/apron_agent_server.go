@@ -238,55 +238,64 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 		dataCh := make(chan []byte)
 		go trans_network.ReadBytesViaStream(reader, dataCh)
 
-		select {
-		case serviceDataBytes := <-dataCh:
-			serviceData := &models.ExtServiceData{}
-			err := proto.Unmarshal(serviceDataBytes, serviceData)
-			internal.CheckError(err)
+		serviceConnections := make(map[string]net.Conn)
 
-			s.logger.Info("got ext service data", zap.Any("service_data", serviceData))
-
-			if serviceData.ServiceName != socks5ServiceName {
-				s.logger.Panic("wrong service name", zap.Any("service_data", serviceData))
-				return errors.New("incorrect service name")
-			}
-
-			switch serviceData.ContentType {
-			case socks5ConnectMessage:
-				s.logger.Info("received socks5ConnectMessage")
-				socksConnectRequest := ApronSocks5ConnectRequest{}
-				err := binary.Unmarshal(serviceData.Content, &socksConnectRequest)
-				internal.CheckError(err)
-				s.logger.Info("parsed connect message detail", zap.Any("connect_request", socksConnectRequest))
-
-				connWithSocks5Service, err := s.connectToSocks5Service(&socksConnectRequest)
+		for {
+			select {
+			case serviceDataBytes := <-dataCh:
+				serviceData := &models.ExtServiceData{}
+				err := proto.Unmarshal(serviceDataBytes, serviceData)
 				internal.CheckError(err)
 
-				go func(conn net.Conn) {
-					for {
-						buf := make([]byte, 4096)
-						reader := bufio.NewReader(conn)
+				s.logger.Info("got ext service data", zap.Any("service_data", serviceData))
 
-						readerCnt, err := reader.Read(buf)
-						internal.CheckError(err)
-						s.logger.Info("got response from service",
-							zap.Binary("socks5_resp", buf[:readerCnt]),
-							zap.Int("read_size", readerCnt),
-						)
-						log.Printf("service resp: %+v\n", buf[:readerCnt])
+				if serviceData.ServiceName != socks5ServiceName {
+					s.logger.Panic("wrong service name", zap.Any("service_data", serviceData))
+					return errors.New("incorrect service name")
+				}
 
-						// Package read data into ExtServiceData package and send back to SSGW
-						respData := models.ExtServiceData{
-							ServiceName: socks5ServiceName,
-							ContentType: 0,
-							Content:     buf[:readerCnt],
+				switch serviceData.ContentType {
+				case socks5ConnectMessage:
+					s.logger.Info("received socks5ConnectMessage")
+					socksConnectRequest := ApronSocks5ConnectRequest{}
+					err := binary.Unmarshal(serviceData.Content, &socksConnectRequest)
+					internal.CheckError(err)
+					s.logger.Info("parsed connect message detail", zap.Any("connect_request", socksConnectRequest))
+
+					connWithSocks5Service, err := s.connectToSocks5Service(&socksConnectRequest)
+					serviceConnections[serviceData.RequestId] = connWithSocks5Service
+					internal.CheckError(err)
+
+					// proxy service data to SSGW
+					go func(conn net.Conn) {
+						for {
+							buf := make([]byte, 4096)
+							reader := bufio.NewReader(conn)
+
+							readerCnt, err := reader.Read(buf)
+							internal.CheckError(err)
+							s.logger.Info("got response from service",
+								zap.Binary("socks5_resp", buf[:readerCnt]),
+								zap.Int("read_size", readerCnt),
+							)
+							log.Printf("service resp: %+v\n", buf[:readerCnt])
+
+							// Package read data into ExtServiceData package and send back to SSGW
+							respData := models.ExtServiceData{
+								ServiceName: socks5ServiceName,
+								ContentType: socks5DataMessage,
+								Content:     buf[:readerCnt],
+							}
+							respDataBytes, err := proto.Marshal(&respData)
+							internal.CheckError(err)
+
+							connWithClientOrSsgw.Write(respDataBytes)
 						}
-						respDataBytes, err := proto.Marshal(&respData)
-						internal.CheckError(err)
-
-						connWithClientOrSsgw.Write(respDataBytes)
-					}
-				}(connWithSocks5Service)
+					}(connWithSocks5Service)
+				case socks5DataMessage:
+					s.logger.Info("received socks5DataMessage")
+					serviceConnections[serviceData.RequestId].Write(serviceData.Content)
+				}
 			}
 		}
 	}
