@@ -13,4 +13,5 @@ const (
 	socks5ServiceName = "socks5"
 
 	socks5ConnectMessage = 1
+	socks5DataMessage    = 2
 )
