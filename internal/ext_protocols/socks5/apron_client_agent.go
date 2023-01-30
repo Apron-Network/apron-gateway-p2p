@@ -3,6 +3,7 @@ package socks5
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -11,6 +12,7 @@ import (
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/models"
 	"apron.network/gateway-p2p/internal/trans_network"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
@@ -130,12 +132,12 @@ func (s *ApronAgentServer) buildSocks5ConnectRequest(conn net.Conn) (*ApronSocks
 
 // connectToCsgwAndSendInitRequest builds init ApronSocketInitRequest and sends to CSGW
 // Currently the only params sent is *serviceId*, which will be used to find related SSGW and establish connection
-func (s *ApronAgentServer) connectToCsgwAndSendInitRequest() error {
+func (s *ApronAgentServer) connectToCsgwAndSendInitRequest() (string, error) {
 	// Connect to CSGW and send ApronSocketInitRequest
 	// TODO: Parse client request and get real service ID
 	s.logger.Info(
 		"got init request from client",
-		zap.String("TODO", "get service id from request"),
+		zap.String("TODO", "get serviceId and userId from request"),
 	)
 	var serviceId string
 	serviceId, found := os.LookupEnv("APRON_SOCKS_SERVICE_ID")
@@ -170,7 +172,21 @@ func (s *ApronAgentServer) proxyDataFromClient(clientConn net.Conn, requestId st
 			readCnt, err := reader.Read(buf)
 			internal.CheckError(err)
 
-			s.logger.Info("CA: got client data", zap.ByteString("resp_content", buf[:readCnt]))
+			s.logger.Info("CA: got client data", zap.Int("data_size", readCnt))
+
+			// Package data to CSGW socket connection
+			serviceData := &models.ExtServiceData{
+				ServiceName: socks5ServiceName,
+				ContentType: socks5DataMessage,
+				RequestId:   requestId,
+				Content:     buf[:readCnt],
+			}
+			dataBytes, err := proto.Marshal(serviceData)
+			internal.CheckError(err)
+
+			s.logger.Info("CA: package client request in ExtServiceData and send to CSGW", zap.Int("data_size", len(dataBytes)))
+
+			trans_network.WriteBytesViaStream(csgwC, dataBytes)
 		}
 	}(clientConn, s.agentConfig.RemoteSocketConn)
 
@@ -195,5 +211,4 @@ func (s *ApronAgentServer) proxyDataFromClient(clientConn net.Conn, requestId st
 			s.logger.Info("written data to client", zap.Int("written_data_size", writeCnt))
 		}
 	}(clientConn, s.agentConfig.RemoteSocketConn)
-
 }
