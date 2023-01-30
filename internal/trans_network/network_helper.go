@@ -40,26 +40,37 @@ func WriteBytesViaStream(w io.Writer, data []byte) {
 
 // ReadBytesViaStream reads bytes from network stream. It will read content length first (uint64) then the content bytes.
 func ReadBytesViaStream(rd io.Reader, dataCh chan []byte) {
-	reader := bufio.NewReader(rd)
-	var msgLen uint64
 	for {
-		err := binary.Read(reader, binary.BigEndian, &msgLen)
-		internal.CheckError(err)
-		switch rd.(type) {
-		case network.Stream:
-			log.Printf("ReadBytesViaStream: protocol: %+v, read msg len: %d\n", rd.(network.Stream).Protocol(), msgLen)
-		default:
-			log.Printf("ReadBytesViaStream: stream: %+v, read msg len: %d\n", rd, msgLen)
-		}
-
-		proxyReqBuf := make([]byte, msgLen)
-
-		_, err = reader.Read(proxyReqBuf)
+		dataBuf, err := ReadOneFrameDataFromStream(rd)
 		internal.CheckError(err)
 
 		//log.Printf("ReadBytesViaStream: Received msg from stream: %+v, len: %+v, data: %+q\n", s.Protocol(), msgLen, proxyReqBuf)
-		dataCh <- proxyReqBuf
+		dataCh <- dataBuf
 	}
+}
+
+// ReadOneFrameDataFromStream reads one frame data (msg length + msg bytes) from stream and return data bytes
+func ReadOneFrameDataFromStream(rd io.Reader) ([]byte, error) {
+	reader := bufio.NewReader(rd)
+	var msgLen uint64
+	err := binary.Read(reader, binary.BigEndian, &msgLen)
+	internal.CheckError(err)
+	switch rd.(type) {
+	case network.Stream:
+		log.Printf("ReadBytesViaStream: protocol: %+v, read msg len: %d\n", rd.(network.Stream).Protocol(), msgLen)
+	default:
+		log.Printf("ReadBytesViaStream: stream: %+v, read msg len: %d\n", rd, msgLen)
+	}
+
+	dataBuf := make([]byte, msgLen)
+
+	_, err = reader.Read(dataBuf)
+	if err != nil {
+		// TODO: Add zap logger
+		return nil, err
+	}
+
+	return dataBuf, nil
 }
 
 //func ReadBytesViaStream(s network.Stream, dataCh chan []byte) {
