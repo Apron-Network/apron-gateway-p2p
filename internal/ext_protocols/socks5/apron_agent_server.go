@@ -342,10 +342,14 @@ func (s *ApronAgentServer) connectToSocks5Service(apronSocksConnectRequest *Apro
 	request.WriteByte(socks5Version)
 	request.WriteByte(socks5ConnectCommand)
 	request.WriteByte(0) // Reserved
+
+	// Domain name
 	request.WriteByte(socks5Domain)
 	request.WriteByte(uint8(len(apronSocksConnectRequest.DestAddr)))
 	request.WriteString(apronSocksConnectRequest.DestAddr)
-	builtinBinary.Write(request, builtinBinary.BigEndian, uint16(80))
+
+	// Port
+	builtinBinary.Write(request, builtinBinary.BigEndian, uint16(apronSocksConnectRequest.DestPort))
 	if _, err := conn.Write(request.Bytes()); err != nil {
 		s.logger.Panic("Failed to send connect request", zap.Error(err))
 		return nil, err
@@ -353,10 +357,13 @@ func (s *ApronAgentServer) connectToSocks5Service(apronSocksConnectRequest *Apro
 
 	// Receive socks5 server response
 	response := make([]byte, 256)
-	if _, err := io.ReadFull(conn, response[:5]); err != nil {
+	serviceRespReader := bufio.NewReader(conn)
+	readCnt, err := serviceRespReader.Read(response)
+	if err != nil {
 		s.logger.Panic("failed to receive connect response header", zap.Error(err))
 		return nil, err
 	}
+	s.logger.Info("got data from service", zap.Int("data_size", readCnt))
 
 	if response[0] != socks5Version || response[1] != 0 {
 		s.logger.Panic("unexpected connect response:", zap.ByteString("resp_header", response[:2]))
