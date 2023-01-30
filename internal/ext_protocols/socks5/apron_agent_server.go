@@ -28,8 +28,12 @@ type ApronAgentServerConfig struct {
 	Mode ApronServerMode
 
 	// Saves client or service side gateway address based on different mode
-	RestMgmtAddr string
-	SocketAddr   string
+	RestMgmtAddr     string
+
+	// RemoteSocketAddr saves remote service this agent will connect to
+	// in client agent mode, this address is CSGW socket proxy listen address
+	// in server agent mode, this address is socket service listen address
+	RemoteSocketAddr string
 
 	// Unify id for the agent, for service side agent, this will be used to register service to SSGW
 	AgentId string

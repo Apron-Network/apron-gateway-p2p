@@ -142,7 +142,7 @@ func (s *ApronAgentServer) connectToCsgwAndSendInitRequest() (net.Conn, error) {
 		serviceId = "apron_hello_socks5"
 	}
 
-	csgwConn, err := net.Dial("tcp", s.agentConfig.SocketAddr)
+	csgwConn, err := net.Dial("tcp", s.agentConfig.RemoteSocketAddr)
 	if err != nil {
 		return nil, err
 	}

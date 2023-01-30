@@ -32,7 +32,7 @@ func main() {
 		agentConfig := socks5.ApronAgentServerConfig{
 			Mode: socks5.ClientAgentMode,
 		}
-		clientOpts.StringVar(&agentConfig.SocketAddr, "csgw-socket-addr", "", "Socket address of service")
+		clientOpts.StringVar(&agentConfig.RemoteSocketAddr, "csgw-socket-addr", "", "Socket address of service")
 		clientOpts.StringVar(&agentConfig.ListenAddr, "listen-addr", "", "Client side GW socket address")
 		clientOpts.Parse(os.Args[2:])
 
@@ -53,7 +53,7 @@ func main() {
 		serviceOpts.StringVar(&agentConfig.AgentId, "agent-id", "", "id of the service agent")
 		serviceOpts.StringVar(&agentConfig.ListenAddr, "listen-addr", "", "Client side GW socket address")
 		serviceOpts.StringVar(&agentConfig.RestMgmtAddr, "ssgw-addr", "", "RESTful management API address for service side gateway")
-		serviceOpts.StringVar(&agentConfig.SocketAddr, "service-addr", "", "Socket address of service")
+		serviceOpts.StringVar(&agentConfig.RemoteSocketAddr, "service-addr", "", "Socket address of service")
 		serviceOpts.Parse(os.Args[2:])
 
 		server, err := socks5.NewApronAgentServer(socks5Config, &agentConfig, logger)
