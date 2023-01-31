@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 
@@ -165,7 +164,7 @@ func (s *ApronAgentServer) proxyDataFromClient(clientConn net.Conn, requestId st
 
 	// Proxy data from client to CSGW
 	go func(clientC, csgwC net.Conn) {
-		buf := make([]byte, 4096)
+		buf := make([]byte, 40960)
 		for {
 			// Read client message
 			reader := bufio.NewReader(clientC)
@@ -207,7 +206,6 @@ func (s *ApronAgentServer) proxyDataFromClient(clientConn net.Conn, requestId st
 				zap.Int("data_size", len(csgwDataBytes)),
 				zap.Any("service_data", serviceData),
 			)
-			log.Printf("content bytes: %+v\n", serviceData.Content)
 
 			// Write raw content to client
 			writeCnt, err := clientC.Write(serviceData.Content)

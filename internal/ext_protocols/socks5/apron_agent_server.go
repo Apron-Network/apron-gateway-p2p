@@ -291,8 +291,8 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 
 					// proxy service data to SSGW
 					go func(conn net.Conn) {
+						buf := make([]byte, 40960)
 						for {
-							buf := make([]byte, 4096)
 							reader := bufio.NewReader(conn)
 
 							readerCnt, err := reader.Read(buf)

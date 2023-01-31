@@ -61,7 +61,7 @@ func startSocketClient(csgwAddr, serviceId string) {
 }
 
 func sendAndReceiveData(conn net.Conn) {
-	buf := make([]byte, 4096)
+	buf := make([]byte, 40960)
 
 	// Read data
 	go func(c net.Conn) {

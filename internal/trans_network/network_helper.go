@@ -64,10 +64,14 @@ func ReadOneFrameDataFromStream(rd io.Reader) ([]byte, error) {
 
 	dataBuf := make([]byte, msgLen)
 
-	_, err = reader.Read(dataBuf)
+	readCnt, err := io.ReadFull(reader, dataBuf)
 	if err != nil {
 		// TODO: Add zap logger
 		return nil, err
+	}
+
+	if uint64(readCnt) != msgLen {
+		log.Panicf("read data failed, expected size %d, read size %d", msgLen, readCnt)
 	}
 
 	return dataBuf, nil

@@ -198,7 +198,7 @@ func (n *Node) ProxySocketInitReqHandler(s network.Stream) {
 	// Create reader goroutines for socket service, and forward service data back with request id in respStream
 	go func() {
 		serverReader := bufio.NewReader(serviceSocketConn)
-		buf := make([]byte, 4096)
+		buf := make([]byte, 40960)
 		for {
 			readSize, err := serverReader.Read(buf)
 			internal.CheckError(err)
