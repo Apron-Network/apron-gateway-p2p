@@ -11,6 +11,9 @@ message ExtServiceData {
   // request_id used to identify connection with service in SA side
   string request_id = 2;
 
+  // unique message, used for tracing complete flow of message
+  string msg_id = 3;
+
   // content_type is used by service handler, to determine how to decode content field
   uint32 content_type = 10;
 
