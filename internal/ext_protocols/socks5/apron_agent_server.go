@@ -15,6 +15,7 @@ import (
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/models"
 	"apron.network/gateway-p2p/internal/trans_network"
+	"github.com/google/uuid"
 	"github.com/kelindar/binary"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
@@ -102,7 +103,11 @@ func (s *ApronAgentServer) ListenAndServe(networkType string) error {
 			s.logger.Error("accept connection error", zap.Error(err), zap.String("addr", s.agentConfig.ListenAddr))
 			return err
 		}
-		s.logger.Sugar().Infof("accept connection on %s, mode: %+v, client addr: %+v", s.agentConfig.ListenAddr, s.agentConfig.Mode, connWithClientOrSsgw.RemoteAddr())
+		s.logger.Info("accept connection",
+			zap.String("listen_addr", s.agentConfig.ListenAddr),
+			zap.Any("mode", s.agentConfig.Mode),
+			zap.Any("client_addr", connWithClientOrSsgw.RemoteAddr()),
+		)
 
 		go func() {
 			err := s.serveConnection(connWithClientOrSsgw)
@@ -159,6 +164,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 				zap.Error(err),
 				zap.Any("agent_config", s.agentConfig),
 				zap.Any("socks_config", s.socks5Config),
+				zap.String("entity", "CA"),
 			)
 			return err
 		}
@@ -175,6 +181,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 				zap.Error(err),
 				zap.Any("agent_config", s.agentConfig),
 				zap.Any("socks_config", s.socks5Config),
+				zap.String("entity", "CA"),
 			)
 			return err
 		}
@@ -190,6 +197,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 				zap.Any("agent_config", s.agentConfig),
 				zap.Any("socks_config", s.socks5Config),
 				zap.Any("connect_request", socksConnectRequest),
+				zap.String("entity", "CA"),
 			)
 			return err
 		}
@@ -197,6 +205,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 		packedSocks5ConnectMessage := models.ExtServiceData{
 			ServiceName: socks5ServiceName,
 			RequestId:   requestId,
+			MsgId:       uuid.NewString(),
 			ContentType: socks5ConnectMessage,
 			Content:     socksConnectRequestBytes,
 		}
@@ -208,11 +217,18 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 				zap.Any("socks_config", s.socks5Config),
 				zap.Any("connect_request", socksConnectRequest),
 				zap.Any("ext_service_data", packedSocks5ConnectMessage),
+				zap.String("entity", "CA"),
 			)
 			return err
 		}
 
-		writeCnt, err := s.agentConfig.RemoteSocketConn.Write(requestSentToCsgwBytes)
+		s.logger.Info("prepare sending data to CSGW",
+			zap.Int("connect_request_size", len(socksConnectRequestBytes)),
+			zap.Int("packed_socks5_connect_message_size", len(requestSentToCsgwBytes)),
+			zap.String("entity", "CA"),
+		)
+
+		trans_network.WriteBytesViaStream(s.agentConfig.RemoteSocketConn, requestSentToCsgwBytes)
 		if err != nil {
 			s.logger.Panic("send packed service data failed",
 				zap.Error(err),
@@ -224,11 +240,17 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 			return err
 		}
 
-		s.logger.Debug("message sent to CSGW", zap.Int("write_cnt", writeCnt))
+		s.logger.Debug("socks5ConnectMessage sent to CSGW",
+			zap.String("request_id", requestId),
+			zap.String("msg_id", packedSocks5ConnectMessage.MsgId),
+			zap.ByteString("data_content", requestSentToCsgwBytes),
+			zap.String("entity", "CA"),
+		)
 
 		// Write success to client for getting more data
 		// TODO: Change to use some message sent from SSGW/SA
 		connWithClientOrSsgw.Write([]byte{5, 0, 0, 1, 0, 0, 0, 0, 0, 0})
+		time.Sleep(100 * time.Microsecond)
 
 		go s.proxyDataFromClient(connWithClientOrSsgw, requestId)
 	case ServerAgentMode:
@@ -243,6 +265,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 		for {
 			select {
 			case serviceDataBytes := <-dataCh:
+				s.logger.Info("got service data", zap.Int("data_size", len(serviceDataBytes)), zap.ByteString("data", serviceDataBytes))
 				serviceData := &models.ExtServiceData{}
 				err := proto.Unmarshal(serviceDataBytes, serviceData)
 				internal.CheckError(err)
@@ -285,6 +308,8 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 								ServiceName: socks5ServiceName,
 								ContentType: socks5DataMessage,
 								Content:     buf[:readerCnt],
+								MsgId:       uuid.NewString(),
+								RequestId:   serviceData.RequestId,
 							}
 							respDataBytes, err := proto.Marshal(&respData)
 							internal.CheckError(err)

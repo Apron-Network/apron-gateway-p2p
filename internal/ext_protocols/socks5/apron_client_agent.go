@@ -179,6 +179,7 @@ func (s *ApronAgentServer) proxyDataFromClient(clientConn net.Conn, requestId st
 				ServiceName: socks5ServiceName,
 				ContentType: socks5DataMessage,
 				RequestId:   requestId,
+				MsgId:       uuid.NewString(),
 				Content:     buf[:readCnt],
 			}
 			dataBytes, err := proto.Marshal(serviceData)
@@ -208,6 +209,7 @@ func (s *ApronAgentServer) proxyDataFromClient(clientConn net.Conn, requestId st
 			)
 			log.Printf("content bytes: %+v\n", serviceData.Content)
 
+			// Write raw content to client
 			writeCnt, err := clientC.Write(serviceData.Content)
 			internal.CheckError(err)
 			s.logger.Info("written data to client", zap.Int("written_data_size", writeCnt))

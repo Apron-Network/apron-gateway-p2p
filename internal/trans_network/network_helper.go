@@ -54,6 +54,7 @@ func ReadOneFrameDataFromStream(rd io.Reader) ([]byte, error) {
 	var msgLen uint64
 	err := binary.Read(reader, binary.BigEndian, &msgLen)
 	internal.CheckError(err)
+	log.Printf("frame data size: %d", msgLen)
 	switch rd.(type) {
 	case network.Stream:
 		log.Printf("ReadBytesViaStream: protocol: %+v, read msg len: %d\n", rd.(network.Stream).Protocol(), msgLen)
