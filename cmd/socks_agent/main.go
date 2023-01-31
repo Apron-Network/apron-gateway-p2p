@@ -7,27 +7,23 @@ import (
 
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/ext_protocols/socks5"
+	"apron.network/gateway-p2p/internal/logger"
 	"go.uber.org/zap"
 )
 
-var logger *zap.Logger
-
 func main() {
-	logger, _ = zap.NewProduction()
 	if len(os.Args) < 2 {
 		printMainUsage()
 		os.Exit(1)
 	}
 	subCommamd := os.Args[1]
-	logger.Sugar().Infof("sub command: %s", subCommamd)
+	logger.GetLogger().Info("got sub command", zap.String("sub_command", subCommamd))
 
-	socks5Config := &socks5.Config{
-		Logger: logger,
-	}
+	socks5Config := &socks5.Config{}
 
 	switch subCommamd {
 	case "ca":
-		logger.Sugar().Infof("client side agent")
+		logger.GetLogger().Info("client side agent")
 		clientOpts := flag.NewFlagSet("client", flag.ExitOnError)
 		agentConfig := socks5.ApronAgentServerConfig{
 			Mode: socks5.ClientAgentMode,
@@ -36,7 +32,7 @@ func main() {
 		clientOpts.StringVar(&agentConfig.ListenAddr, "listen-addr", "", "Client side GW socket address")
 		clientOpts.Parse(os.Args[2:])
 
-		server, err := socks5.NewApronAgentServer(socks5Config, &agentConfig, logger)
+		server, err := socks5.NewApronAgentServer(socks5Config, &agentConfig, logger.GetLogger())
 		internal.CheckError(err)
 
 		go func() {
@@ -44,7 +40,7 @@ func main() {
 			internal.CheckError(err)
 		}()
 	case "sa":
-		logger.Sugar().Infof("service side agent")
+		logger.GetLogger().Info("service side agent")
 		serviceOpts := flag.NewFlagSet("service", flag.ExitOnError)
 		agentConfig := socks5.ApronAgentServerConfig{
 			Mode: socks5.ServerAgentMode,
@@ -56,7 +52,7 @@ func main() {
 		serviceOpts.StringVar(&agentConfig.RemoteSocketAddr, "service-addr", "", "Socket address of service")
 		serviceOpts.Parse(os.Args[2:])
 
-		server, err := socks5.NewApronAgentServer(socks5Config, &agentConfig, logger)
+		server, err := socks5.NewApronAgentServer(socks5Config, &agentConfig, logger.GetLogger())
 		internal.CheckError(err)
 
 		go func() {

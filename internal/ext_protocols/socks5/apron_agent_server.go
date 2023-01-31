@@ -67,14 +67,6 @@ func NewApronAgentServer(socksConf *Config, agentConf *ApronAgentServerConfig, l
 		socksConf.Resolver = DNSResolver{}
 	}
 
-	if socksConf.Logger == nil {
-		logger, err := zap.NewProduction()
-		if err != nil {
-			return nil, err
-		}
-		socksConf.Logger = logger
-	}
-
 	server := &ApronAgentServer{
 		socks5Config: socksConf,
 		agentConfig:  agentConf,

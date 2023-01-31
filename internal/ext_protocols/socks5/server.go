@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 
+	"apron.network/gateway-p2p/internal/logger"
 	"go.uber.org/zap"
 )
 
@@ -16,7 +17,6 @@ type Config struct {
 	Rules       RuleSet
 	Rewriter    AddressRewriter
 	BindIP      net.IP
-	Logger      *zap.Logger
 	Dial        func(ctx context.Context, network, addr string) (net.Conn, error)
 	MsgCh       *chan []byte
 }
@@ -44,11 +44,6 @@ func New(conf *Config) (*Server, error) {
 	// Ensure we have a rule set
 	if conf.Rules == nil {
 		conf.Rules = PermitAll()
-	}
-
-	// Ensure we have a log target
-	if conf.Logger == nil {
-		conf.Logger = zap.NewExample()
 	}
 
 	server := &Server{
@@ -118,7 +113,7 @@ func (s *Server) ServeConnection(conn net.Conn, apronMode bool) error {
 	request, err := s.prepareRequest(conn)
 	if err != nil {
 		err = fmt.Errorf("failed to prepare request: %v", err)
-		s.config.Logger.Error("prepare request error", zap.Error(err))
+		logger.GetLogger().Error("prepare request error", zap.Error(err))
 		return err
 	}
 
@@ -129,7 +124,7 @@ func (s *Server) ServeConnection(conn net.Conn, apronMode bool) error {
 	// Process the client request
 	if err := s.handleRequest(request, conn); err != nil {
 		err = fmt.Errorf("failed to handle request: %v", err)
-		s.config.Logger.Error("handle request error", zap.Error(err))
+		logger.GetLogger().Error("handle request error", zap.Error(err))
 		return err
 	}
 	return nil
@@ -141,14 +136,14 @@ func (s *Server) prepareRequest(conn net.Conn) (*Request, error) {
 	// Read the version byte
 	version := []byte{0}
 	if _, err := bufConn.Read(version); err != nil {
-		s.config.Logger.Error("socks: Failed to get version byte", zap.Error(err))
+		logger.GetLogger().Error("socks: Failed to get version byte", zap.Error(err))
 		return nil, err
 	}
 
 	// Ensure we are compatible
 	if version[0] != socks5Version {
 		err := fmt.Errorf("unsupported SOCKS version: %v", version)
-		s.config.Logger.Error("socks error", zap.Error(err))
+		logger.GetLogger().Error("socks error", zap.Error(err))
 		return nil, err
 	}
 
@@ -156,7 +151,7 @@ func (s *Server) prepareRequest(conn net.Conn) (*Request, error) {
 	authContext, err := s.authenticate(conn, bufConn)
 	if err != nil {
 		err = fmt.Errorf("failed to authenticate: %v", err)
-		s.config.Logger.Error("socks error", zap.Error(err))
+		logger.GetLogger().Error("socks error", zap.Error(err))
 		return nil, err
 	}
 
