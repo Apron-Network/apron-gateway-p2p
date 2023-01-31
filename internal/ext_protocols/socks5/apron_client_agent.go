@@ -192,18 +192,20 @@ func (s *ApronAgentServer) proxyDataFromClient(clientConn net.Conn, requestId st
 
 	// Proxy data from CSGW to Client
 	go func(clientC, csgwC net.Conn) {
-		buf := make([]byte, 4096)
 		for {
-			// Read client message
+			// Read ExtServiceData sent from CSGW
 			reader := bufio.NewReader(csgwC)
-			readCnt, err := reader.Read(buf)
+			csgwDataBytes, err := trans_network.ReadOneFrameDataFromStream(reader)
 			internal.CheckError(err)
 
 			serviceData := models.ExtServiceData{}
-			err = proto.Unmarshal(buf[:readCnt], &serviceData)
+			err = proto.Unmarshal(csgwDataBytes, &serviceData)
 			internal.CheckError(err)
 
-			s.logger.Info("CA: got CSGW data", zap.ByteString("resp_content_byte", buf[:readCnt]), zap.Any("service_data", serviceData))
+			s.logger.Info("CA: got CSGW data",
+				zap.Int("data_size", len(csgwDataBytes)),
+				zap.Any("service_data", serviceData),
+			)
 			log.Printf("content bytes: %+v\n", serviceData.Content)
 
 			writeCnt, err := clientC.Write(serviceData.Content)

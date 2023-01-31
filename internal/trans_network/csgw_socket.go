@@ -112,16 +112,16 @@ func (n *Node) StartSocketForwardService() {
 			// Save client to CSGW connection in node, which will be used in stream handler function
 			n.clientSocketConns[requestId] = conn
 
-			buf := make([]byte, 4096)
 			go func() {
 				for {
-					readSize, err := conn.Read(buf)
+					reader := bufio.NewReader(conn)
+					data, err := ReadOneFrameDataFromStream(reader)
 					internal.CheckError(err)
 
-					n.logger.Info("CSGW: Received data from client", zap.Int("data_size", readSize))
+					n.logger.Info("CSGW: Received data from client", zap.Int("data_size", len(data)))
 					serviceData := models.ApronServiceData{
 						RequestId: requestId,
-						RawData:   buf[:readSize],
+						RawData:   data,
 					}
 
 					serviceDataBytes, err := proto.Marshal(&serviceData)

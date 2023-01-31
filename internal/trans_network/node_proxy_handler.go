@@ -235,7 +235,10 @@ func (n *Node) ProxySocketDataHandler(s network.Stream) {
 			if s.Protocol() == protocol.ID(ProxySocketDataFromClientSide) {
 				// Got data sent from CSGW. The data is ApronServiceData package,
 				// and the RawData should be ExtServiceData, which will be processed in agent side
-				n.logger.Info("ProxyDataFromClientSideHandler: got data from CSGW", zap.String("request_id", proxyData.RequestId))
+				n.logger.Info("ProxyDataFromClientSideHandler: got data from CSGW",
+					zap.String("request_id", proxyData.RequestId),
+					zap.Any("service_data", proxyData),
+				)
 
 				WriteBytesViaStream(n.serviceSocketConns[proxyData.RequestId], proxyData.RawData)
 				n.logger.Info("data sent to service agent / service", zap.String("request_id", proxyData.RequestId))
@@ -244,8 +247,8 @@ func (n *Node) ProxySocketDataHandler(s network.Stream) {
 				//n.serviceUsageRecordManager.RecordUsageFromSocket(proxyData, true)
 			} else if s.Protocol() == protocol.ID(ProxySocketDataFromServiceSide) {
 				n.logger.Info("ProxyDataFromServiceHandler: Send data to client")
-				_, err = n.clientSocketConns[proxyData.RequestId].Write(proxyData.RawData)
-				internal.CheckError(err)
+				WriteBytesViaStream(n.clientSocketConns[proxyData.RequestId], proxyData.RawData)
+				n.logger.Info("data sent to client agent / client", zap.String("request_id", proxyData.RequestId))
 
 				// TODO: Record socket usage data is not implemented yet
 				//n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, false)
