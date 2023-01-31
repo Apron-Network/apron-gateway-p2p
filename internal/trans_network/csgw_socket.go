@@ -99,8 +99,8 @@ func (n *Node) StartSocketForwardService() {
 			}
 
 			reqBytes, err := proto.Marshal(req)
-			n.logger.Info("Init socket request", zap.Int("request_size", len(reqBytes)), zap.ByteString("req_bytes", reqBytes))
 			internal.CheckError(err)
+			n.logger.Info("Init socket request", zap.Int("request_size", len(reqBytes)), zap.ByteString("req_bytes", reqBytes))
 			WriteBytesViaStream(initSocketConnStream, reqBytes)
 
 			clientSocketDataStream, err := (*n.Host).NewStream(context.Background(), servicePeerId, protocol.ID(ProxySocketDataFromClientSide))
@@ -116,9 +116,22 @@ func (n *Node) StartSocketForwardService() {
 				for {
 					reader := bufio.NewReader(conn)
 					data, err := ReadOneFrameDataFromStream(reader)
-					internal.CheckError(err)
+					if err != nil {
+						n.logger.Error("receive data from client error",
+							zap.String(EntityFieldName, EntityCSGW),
+							zap.Error(err),
+						)
+						if err.Error() == "EOF" {
+							conn.Close()
+							break
+						}
+						continue
+					}
 
-					n.logger.Info("CSGW: Received data from client", zap.Int("data_size", len(data)))
+					n.logger.Info("CSGW: Received data from client",
+						zap.Int("data_size", len(data)),
+						zap.String(EntityFieldName, EntityCSGW),
+					)
 					serviceData := models.ApronServiceData{
 						RequestId: requestId,
 						RawData:   data,
@@ -126,7 +139,8 @@ func (n *Node) StartSocketForwardService() {
 
 					serviceDataBytes, err := proto.Marshal(&serviceData)
 					internal.CheckError(err)
-					n.logger.Info("CSGW: package data into ApronServiceData and send to SSGW",
+					n.logger.Info("package data into ApronServiceData and send to SSGW",
+						zap.String(EntityFieldName, EntityCSGW),
 						zap.Int("data_size", len(serviceDataBytes)),
 						zap.String("stream_name", "ProxySocketDataFromClientSide"),
 					)

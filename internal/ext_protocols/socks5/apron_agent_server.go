@@ -164,7 +164,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 				zap.Error(err),
 				zap.Any("agent_config", s.agentConfig),
 				zap.Any("socks_config", s.socks5Config),
-				zap.String("entity", "CA"),
+				zap.String(trans_network.EntityFieldName, trans_network.EntityCA),
 			)
 			return err
 		}
@@ -181,7 +181,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 				zap.Error(err),
 				zap.Any("agent_config", s.agentConfig),
 				zap.Any("socks_config", s.socks5Config),
-				zap.String("entity", "CA"),
+				zap.String(trans_network.EntityFieldName, trans_network.EntityCA),
 			)
 			return err
 		}
@@ -197,7 +197,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 				zap.Any("agent_config", s.agentConfig),
 				zap.Any("socks_config", s.socks5Config),
 				zap.Any("connect_request", socksConnectRequest),
-				zap.String("entity", "CA"),
+				zap.String(trans_network.EntityFieldName, trans_network.EntityCA),
 			)
 			return err
 		}
@@ -217,7 +217,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 				zap.Any("socks_config", s.socks5Config),
 				zap.Any("connect_request", socksConnectRequest),
 				zap.Any("ext_service_data", packedSocks5ConnectMessage),
-				zap.String("entity", "CA"),
+				zap.String(trans_network.EntityFieldName, trans_network.EntityCA),
 			)
 			return err
 		}
@@ -225,7 +225,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 		s.logger.Info("prepare sending data to CSGW",
 			zap.Int("connect_request_size", len(socksConnectRequestBytes)),
 			zap.Int("packed_socks5_connect_message_size", len(requestSentToCsgwBytes)),
-			zap.String("entity", "CA"),
+			zap.String(trans_network.EntityFieldName, trans_network.EntityCA),
 		)
 
 		trans_network.WriteBytesViaStream(s.agentConfig.RemoteSocketConn, requestSentToCsgwBytes)
@@ -244,7 +244,7 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 			zap.String("request_id", requestId),
 			zap.String("msg_id", packedSocks5ConnectMessage.MsgId),
 			zap.ByteString("data_content", requestSentToCsgwBytes),
-			zap.String("entity", "CA"),
+			zap.String(trans_network.EntityFieldName, trans_network.EntityCA),
 		)
 
 		// Write success to client for getting more data
@@ -258,7 +258,8 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 		reader := bufio.NewReader(connWithClientOrSsgw)
 
 		dataCh := make(chan []byte)
-		go trans_network.ReadBytesViaStream(reader, dataCh)
+		errCh := make(chan error)
+		go trans_network.ReadBytesViaStream(reader, dataCh, errCh)
 
 		serviceConnections := make(map[string]net.Conn)
 
@@ -321,6 +322,8 @@ func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error 
 					s.logger.Info("received socks5DataMessage")
 					serviceConnections[serviceData.RequestId].Write(serviceData.Content)
 				}
+			case errMsg := <-errCh:
+				s.logger.Panic("got error message while reading data from stream", zap.Error(errMsg))
 			}
 		}
 	}

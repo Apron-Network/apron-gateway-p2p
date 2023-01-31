@@ -21,7 +21,8 @@ import (
 
 func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 	dataCh := make(chan []byte)
-	go ReadBytesViaStream(s, dataCh)
+	errCh := make(chan error)
+	go ReadBytesViaStream(s, dataCh, errCh)
 
 	select {
 	case proxyReqBytes := <-dataCh:
@@ -104,12 +105,15 @@ func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 			n.logger.Sugar().Infof("resp stream is nil %+v\n", respStream == nil)
 			WriteBytesViaStream(respStream, respBytes)
 		}
+	case errMsg := <-errCh:
+		n.logger.Panic("read data stream error", zap.Error(errMsg))
 	}
 }
 
 func (n *Node) ProxyWsDataHandler(s network.Stream) {
 	dataCh := make(chan []byte)
-	go ReadBytesViaStream(s, dataCh)
+	errCh := make(chan error)
+	go ReadBytesViaStream(s, dataCh, errCh)
 
 	for {
 		select {
@@ -133,13 +137,16 @@ func (n *Node) ProxyWsDataHandler(s network.Stream) {
 			} else {
 				panic(errors.New(fmt.Sprintf("wrong protocol: %s", s.Protocol())))
 			}
+		case errMsg := <-errCh:
+			n.logger.Panic("read data stream error", zap.Error(errMsg))
 		}
 	}
 }
 
 func (n *Node) ProxyHttpRespHandler(s network.Stream) {
 	dataCh := make(chan []byte)
-	go ReadBytesViaStream(s, dataCh)
+	errCh := make(chan error)
+	go ReadBytesViaStream(s, dataCh, errCh)
 
 	for {
 		select {
@@ -152,10 +159,10 @@ func (n *Node) ProxyHttpRespHandler(s network.Stream) {
 			n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, false)
 
 			n.clientHttpDataChan[proxyData.RequestId] <- proxyData.RawData
+		case errMsg := <-errCh:
+			n.logger.Panic("read data stream error", zap.Error(errMsg))
 		}
-
 	}
-
 }
 
 // ProxySocketInitReqHandler will be used to init socket connection to service
@@ -221,7 +228,8 @@ func (n *Node) ProxySocketInitReqHandler(s network.Stream) {
 // ProxySocketDataHandler will be used to process socket data from client or service side
 func (n *Node) ProxySocketDataHandler(s network.Stream) {
 	dataCh := make(chan []byte)
-	go ReadBytesViaStream(s, dataCh)
+	errCh := make(chan error)
+	go ReadBytesViaStream(s, dataCh, errCh)
 
 	for {
 		select {
@@ -255,6 +263,8 @@ func (n *Node) ProxySocketDataHandler(s network.Stream) {
 			} else {
 				panic(errors.New(fmt.Sprintf("wrong protocol: %s", s.Protocol())))
 			}
+		case errMsg := <-errCh:
+			n.logger.Panic("read data stream error", zap.Error(errMsg))
 		}
 	}
 }

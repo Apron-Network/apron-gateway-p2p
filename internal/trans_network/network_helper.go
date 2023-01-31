@@ -38,10 +38,13 @@ func WriteBytesViaStream(w io.Writer, data []byte) {
 }
 
 // ReadBytesViaStream reads bytes from network stream. It will read content length first (uint64) then the content bytes.
-func ReadBytesViaStream(rd io.Reader, dataCh chan []byte) {
+func ReadBytesViaStream(rd io.Reader, dataCh chan []byte, errCh chan error) {
 	for {
 		dataBuf, err := ReadOneFrameDataFromStream(rd)
-		internal.CheckError(err)
+		if err != nil {
+			log.Printf("ReadOneFrameDataFromStream error: %+v", err)
+			errCh <- err
+		}
 
 		//log.Printf("ReadBytesViaStream: Received msg from stream: %+v, len: %+v, data: %+q\n", s.Protocol(), msgLen, proxyReqBuf)
 		dataCh <- dataBuf
@@ -53,7 +56,10 @@ func ReadOneFrameDataFromStream(rd io.Reader) ([]byte, error) {
 	reader := bufio.NewReader(rd)
 	var msgLen uint64
 	err := binary.Read(reader, binary.BigEndian, &msgLen)
-	internal.CheckError(err)
+	if err != nil {
+		return nil, err
+	}
+
 	log.Printf("frame data size: %d", msgLen)
 	switch rd.(type) {
 	case network.Stream:

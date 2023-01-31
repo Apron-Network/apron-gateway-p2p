@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 
-	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/models"
 	"apron.network/gateway-p2p/internal/trans_network"
 	"github.com/google/uuid"
@@ -169,7 +168,17 @@ func (s *ApronAgentServer) proxyDataFromClient(clientConn net.Conn, requestId st
 			// Read client message
 			reader := bufio.NewReader(clientC)
 			readCnt, err := reader.Read(buf)
-			internal.CheckError(err)
+			if err != nil {
+				s.logger.Error("read data from client error",
+					zap.String(trans_network.EntityFieldName, trans_network.EntityCA),
+					zap.Error(err),
+				)
+				if err.Error() == "EOF" {
+					break
+				} else {
+					continue
+				}
+			}
 
 			s.logger.Info("CA: got client data", zap.Int("data_size", readCnt))
 
@@ -182,7 +191,17 @@ func (s *ApronAgentServer) proxyDataFromClient(clientConn net.Conn, requestId st
 				Content:     buf[:readCnt],
 			}
 			dataBytes, err := proto.Marshal(serviceData)
-			internal.CheckError(err)
+			if err != nil {
+				s.logger.Error("marshal ExtServiceData failed",
+					zap.String(trans_network.EntityFieldName, trans_network.EntityCA),
+					zap.Error(err),
+				)
+				if err.Error() == "EOF" {
+					break
+				} else {
+					continue
+				}
+			}
 
 			s.logger.Info("CA: package client request in ExtServiceData and send to CSGW", zap.Int("data_size", len(dataBytes)))
 
@@ -196,11 +215,32 @@ func (s *ApronAgentServer) proxyDataFromClient(clientConn net.Conn, requestId st
 			// Read ExtServiceData sent from CSGW
 			reader := bufio.NewReader(csgwC)
 			csgwDataBytes, err := trans_network.ReadOneFrameDataFromStream(reader)
-			internal.CheckError(err)
+			if err != nil {
+				s.logger.Error("read data from CSGW error",
+					zap.String(trans_network.EntityFieldName, trans_network.EntityCA),
+					zap.Error(err),
+				)
+				if err.Error() == "EOF" {
+					break
+				} else {
+					continue
+				}
+			}
 
 			serviceData := models.ExtServiceData{}
 			err = proto.Unmarshal(csgwDataBytes, &serviceData)
-			internal.CheckError(err)
+			if err != nil {
+				s.logger.Error("unmarshal ExtServiceData bytes from CSGW error",
+					zap.String(trans_network.EntityFieldName, trans_network.EntityCA),
+					zap.ByteString("received_data", csgwDataBytes),
+					zap.Error(err),
+				)
+				if err.Error() == "EOF" {
+					break
+				} else {
+					continue
+				}
+			}
 
 			s.logger.Info("CA: got CSGW data",
 				zap.Int("data_size", len(csgwDataBytes)),
@@ -209,7 +249,18 @@ func (s *ApronAgentServer) proxyDataFromClient(clientConn net.Conn, requestId st
 
 			// Write raw content to client
 			writeCnt, err := clientC.Write(serviceData.Content)
-			internal.CheckError(err)
+			if err != nil {
+				s.logger.Error("write data to client error",
+					zap.String(trans_network.EntityFieldName, trans_network.EntityCA),
+					zap.ByteString("data_to_be_returned", serviceData.Content),
+					zap.Error(err),
+				)
+				if err.Error() == "EOF" {
+					break
+				} else {
+					continue
+				}
+			}
 			s.logger.Info("written data to client", zap.Int("written_data_size", writeCnt))
 		}
 	}(clientConn, s.agentConfig.RemoteSocketConn)
