@@ -72,22 +72,3 @@ func ReadOneFrameDataFromStream(rd io.Reader) ([]byte, error) {
 
 	return dataBuf, nil
 }
-
-//func ReadBytesViaStream(s network.Stream, dataCh chan []byte) {
-//	// TODO: Add error chan
-//	reader := bufio.NewReader(s)
-//	var msgLen uint64
-//	for {
-//		err := binary.Read(reader, binary.BigEndian, &msgLen)
-//		internal.CheckError(err)
-//		log.Printf("ReadBytesViaStream: protocol: %+v, read msg len: %d\n", s.Protocol(), msgLen)
-//
-//		proxyReqBuf := make([]byte, msgLen)
-//
-//		_, err = reader.Read(proxyReqBuf)
-//		internal.CheckError(err)
-//
-//		//log.Printf("ReadBytesViaStream: Received msg from stream: %+v, len: %+v, data: %+q\n", s.Protocol(), msgLen, proxyReqBuf)
-//		dataCh <- proxyReqBuf
-//	}
-//}
