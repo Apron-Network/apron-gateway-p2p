@@ -144,7 +144,7 @@ func (s *ApronAgentServer) prepareAgent(listenAddr string) error {
 
 // serveConnection is invoked after agent is prepared.
 // For client side mode, the request sent from client contains socks5 header data, and those steps will be executed sequentially:
-// 1. Read greeting message, and send NoAuth response (TODO: embed serviceId and userId in request URL)
+// 1. Read greeting message, and send socks5AuthNone response (TODO: embed serviceId and userId in request URL)
 // 2. Get `version` and `cmd` in next request, verify those are supported flags
 // 3. Create ApronInitRequest
 func (s *ApronAgentServer) serveConnection(connWithClientOrSsgw net.Conn) error {
@@ -349,9 +349,9 @@ func (s *ApronAgentServer) connectToSocks5Service(apronSocksConnectRequest *Apro
 	}
 
 	// Send SOCKS5 authentication methods
-	authMethods := []uint8{NoAuth}
-	if _, err := conn.Write([]byte{socks5Version, uint8(len(authMethods)), NoAuth}); err != nil {
-		s.logger.Panic("failed to send NoAuth data")
+	authMethods := []uint8{socks5AuthNone}
+	if _, err := conn.Write([]byte{socks5Version, uint8(len(authMethods)), socks5AuthNone}); err != nil {
+		s.logger.Panic("failed to send socks5AuthNone data")
 		return nil, err
 	}
 
@@ -362,7 +362,7 @@ func (s *ApronAgentServer) connectToSocks5Service(apronSocksConnectRequest *Apro
 		return nil, errors.New("failed to receive authentication response")
 	}
 
-	if authResponse[0] != socks5Version || authResponse[1] != NoAuth {
+	if authResponse[0] != socks5Version || authResponse[1] != socks5AuthNone {
 		s.logger.Panic("unexpected authentication response", zap.ByteString("service_resp", authResponse))
 		return nil, errors.New("unexpected authentication response")
 	}

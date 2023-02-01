@@ -88,21 +88,21 @@ func (s *ApronAgentServer) buildSocks5ConnectRequest(conn net.Conn) (*ApronSocks
 	}
 
 	switch addrType[0] {
-	case ipv4Address:
+	case socks5IPv4:
 		addr := make([]byte, 4)
 		if _, err := io.ReadAtLeast(reader, addr, len(addr)); err != nil {
 			return nil, err
 		}
 		connRequest.DestAddr = net.IP(addr).String()
 
-	case ipv6Address:
+	case socks5IPv6:
 		addr := make([]byte, 16)
 		if _, err := io.ReadAtLeast(reader, addr, len(addr)); err != nil {
 			return nil, err
 		}
 		connRequest.DestAddr = net.IP(addr).String()
 
-	case fqdnAddress:
+	case socks5Domain:
 		if _, err := reader.Read(addrType); err != nil {
 			return nil, err
 		}
@@ -114,7 +114,7 @@ func (s *ApronAgentServer) buildSocks5ConnectRequest(conn net.Conn) (*ApronSocks
 		connRequest.DestAddr = string(fqdn)
 
 	default:
-		return nil, unrecognizedAddrType
+		return nil, unknownAddressType
 	}
 
 	// dest port
