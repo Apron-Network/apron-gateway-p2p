@@ -13,6 +13,7 @@ import (
 	builtinBinary "encoding/binary"
 
 	"apron.network/gateway-p2p/internal"
+	"apron.network/gateway-p2p/internal/logger"
 	"apron.network/gateway-p2p/internal/models"
 	"apron.network/gateway-p2p/internal/trans_network"
 	"github.com/google/uuid"
@@ -58,7 +59,7 @@ type ApronAgentServer struct {
 	logger *zap.Logger
 }
 
-func NewApronAgentServer(socksConf *Config, agentConf *ApronAgentServerConfig, logger *zap.Logger) (*ApronAgentServer, error) {
+func NewApronAgentServer(socksConf *Config, agentConf *ApronAgentServerConfig) (*ApronAgentServer, error) {
 	// TODO: AuthMethods is ignored currently
 	// TODO: Rule set is ignored currently
 
@@ -70,7 +71,7 @@ func NewApronAgentServer(socksConf *Config, agentConf *ApronAgentServerConfig, l
 	server := &ApronAgentServer{
 		socks5Config: socksConf,
 		agentConfig:  agentConf,
-		logger:       logger,
+		logger:       logger.GetLogger(),
 	}
 
 	return server, nil

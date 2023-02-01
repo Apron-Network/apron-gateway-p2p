@@ -32,7 +32,7 @@ func main() {
 		clientOpts.StringVar(&agentConfig.ListenAddr, "listen-addr", "", "Client side GW socket address")
 		clientOpts.Parse(os.Args[2:])
 
-		server, err := socks5.NewApronAgentServer(socks5Config, &agentConfig, logger.GetLogger())
+		server, err := socks5.NewApronAgentServer(socks5Config, &agentConfig)
 		internal.CheckError(err)
 
 		go func() {
@@ -52,7 +52,7 @@ func main() {
 		serviceOpts.StringVar(&agentConfig.RemoteSocketAddr, "service-addr", "", "Socket address of service")
 		serviceOpts.Parse(os.Args[2:])
 
-		server, err := socks5.NewApronAgentServer(socks5Config, &agentConfig, logger.GetLogger())
+		server, err := socks5.NewApronAgentServer(socks5Config, &agentConfig)
 		internal.CheckError(err)
 
 		go func() {

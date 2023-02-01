@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 
+	"apron.network/gateway-p2p/internal/logger"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"go.uber.org/zap"
 
@@ -80,14 +81,6 @@ func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
 	usageRecordManager := models.UsageRecordManager{}
 	usageRecordManager.Init()
 
-	// TODO: change to singleton function and apply to all code
-	logEncoderConfig := zap.NewProductionEncoderConfig()
-	logEncoderConfig.TimeKey = "ts"
-	loggerConfig := zap.NewProductionConfig()
-	loggerConfig.EncoderConfig = logEncoderConfig
-	logger := zap.Must(loggerConfig.Build())
-	defer logger.Sync()
-
 	return &Node{
 		Host:                      &h,
 		Config:                    config,
@@ -102,7 +95,7 @@ func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
 		serviceSocketConns:        map[string]net.Conn{},
 		clientHttpDataChan:        map[string]chan []byte{},
 		serviceUsageRecordManager: usageRecordManager,
-		logger:                    logger,
+		logger:                    logger.GetLogger(),
 	}, nil
 }
 
