@@ -37,7 +37,7 @@ func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 		var clientReqDetail models.RequestDetail
 		err = models.ExtractRequestDetailFromFasthttpRequest(httpReq, &clientReqDetail)
 
-		n.serviceUsageRecordManager.RecordUsageFromInitHttpProxyRequest(proxyReq, &clientReqDetail)
+		//n.serviceUsageRecordManager.RecordUsageFromInitHttpProxyRequest(proxyReq, &clientReqDetail)
 
 		peerId, err := peer.Decode(proxyReq.PeerId)
 		internal.CheckError(err)
@@ -128,12 +128,12 @@ func (n *Node) ProxyWsDataHandler(s network.Stream) {
 				n.logger.Sugar().Infof("ProxyDataFromClientSideHandler: Send data to service\n")
 				err = n.serviceWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
 				internal.CheckError(err)
-				n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, true)
+				//n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, true)
 			} else if s.Protocol() == protocol.ID(ProxyWsDataFromServiceSide) {
 				n.logger.Sugar().Infof("ProxyDataFromServiceHandler: Send data to client\n")
 				err = n.clientWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
 				internal.CheckError(err)
-				n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, false)
+				//n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, false)
 			} else {
 				panic(errors.New(fmt.Sprintf("wrong protocol: %s", s.Protocol())))
 			}
@@ -181,7 +181,7 @@ func (n *Node) ProxySocketInitReqHandler(s network.Stream) {
 
 	n.logger.Sugar().Infof("ClientSideGateway PeerID: %+v\n", csgwPeerId)
 
-	n.serviceUsageRecordManager.RecordUsageFromSocket(socketInitReq)
+	//n.serviceUsageRecordManager.RecordUsageFromSocket(socketInitReq)
 
 	// Get service detail from local services list and fill missing fields of request
 	serviceDetail := n.services[socketInitReq.ServiceId]
