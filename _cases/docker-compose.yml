@@ -1,0 +1,50 @@
+version: '3'
+
+services:
+  alice_ssgw:
+    image: apron/gateway_p2p
+    ports:
+      - "8080:8080" # Management port
+      - "8082:8082" # HTTP forward port
+      - "9980:9980" # Socket forward port
+    command: [
+      "-secret-key", "1",
+      "-ipfs-key", "apron",
+      "ipfs-secret", "testdata"
+    ]
+    container_name: apn_alice_ssgw
+    networks:
+      apron_testnet:
+        ipv4_address: 192.168.55.10
+
+  bob_csgw:
+    image: apron/gateway_p2p
+    ports:
+      - "8081:8081"
+      - "8083:8083"
+      - "9981:9981"
+    command: [
+      "-peers", "/ip4/192.168.55.10/tcp/2145/p2p/12D3KooWBnTyEyBVeYpZJobw78rb85nNamrYQR3Tc6gJmfQ76pG4",
+      "-p2p-port", "2146",
+      "-service-addr", ":8081",
+      "-mgmt-addr", ":8083",
+      "-socket-service-addr", "localhost:9981",
+      "-secret-key", "2",
+      "-ipfs-key", "apron",
+      "-ipfs-secret", "testdata"
+    ]
+    container_name: apn_bob_csgw
+    depends_on:
+      - alice_ssgw
+    networks:
+      apron_testnet:
+        ipv4_address: 192.168.55.11
+
+networks:
+  apron_testnet:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.55.0/24
+          gateway: 192.168.55.1
