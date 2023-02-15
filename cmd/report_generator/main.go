@@ -1,13 +1,15 @@
 package main
 
 import (
-	"apron.network/gateway-p2p/internal/models"
 	"flag"
 	"fmt"
-	"google.golang.org/protobuf/proto"
 	"log"
 	"os"
 	"path/filepath"
+
+	"apron.network/gateway-p2p/internal/logger"
+	"apron.network/gateway-p2p/internal/models"
+	"google.golang.org/protobuf/proto"
 )
 
 func main() {
@@ -34,14 +36,14 @@ func main() {
 		var report models.NodeReport
 		err = proto.Unmarshal(content, &report)
 		if err != nil {
-			fmt.Printf("Filename: %s, err: %s", path, err)
+			logger.GetLogger().Sugar().Infof("Filename: %s, err: %s", path, err)
 			return err
 		}
 
 		if len(report.Records) != 0 {
-			fmt.Printf("Node id: %s\n", report.NodeId)
+			fmt.Printf("Node id: %s", report.NodeId)
 			for _, r := range report.Records {
-				fmt.Printf("  Record: %+v\n", r)
+				logger.GetLogger().Sugar().Infof("  Record: %+v", r)
 			}
 		}
 

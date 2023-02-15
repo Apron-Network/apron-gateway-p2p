@@ -133,7 +133,7 @@ func (n *Node) StartListeningOnServiceBroadcast(ctx context.Context) {
 			continue
 		}
 
-		// n.logger.Sugar().Infof("ReceivedFrom: %+s\n", msg.ReceivedFrom.Pretty())
+		// n.logger.Sugar().Infof("ReceivedFrom: %+s", msg.ReceivedFrom.Pretty())
 
 		if msg.ReceivedFrom == n.selfID {
 			continue
@@ -144,7 +144,7 @@ func (n *Node) StartListeningOnServiceBroadcast(ctx context.Context) {
 			log.Println("Unmarshal ApronService err", err)
 			continue
 		}
-		// n.logger.Sugar().Infof("Received service: %+v\n", service)
+		// n.logger.Sugar().Infof("Received service: %+v", service)
 		n.RegisterRemoteService(msg.ReceivedFrom, service)
 	}
 }
@@ -152,7 +152,7 @@ func (n *Node) StartListeningOnServiceBroadcast(ctx context.Context) {
 // BroadcastService broad local service to the network with configured topic,
 // so all nodes subscribed to the topic can update its local cache data
 func (n *Node) BroadcastService(ctx context.Context, service *models.ApronService) error {
-	n.logger.Sugar().Infof("[Local Service] broadcast service %s --to--> all peers\n", service.Id)
+	n.logger.Sugar().Infof("[Local Service] broadcast service %s --to--> all peers", service.Id)
 	data, err := proto.Marshal(service)
 	if err != nil {
 		return err
@@ -161,17 +161,16 @@ func (n *Node) BroadcastService(ctx context.Context, service *models.ApronServic
 }
 
 func (n *Node) RegisterLocalService(service *models.ApronService) {
-	n.logger.Sugar().Infof("\n")
 	n.mutex.Lock()
 	if service.IsDeleted {
-		n.logger.Sugar().Infof("[Local Service] deleted service %s\n", service.Id)
+		n.logger.Sugar().Infof("[Local Service] deleted service %s", service.Id)
 		delete(n.services, service.Id)
 		delete(n.servicePeerMapping, service.Id)
 	} else {
 		n.services[service.Id] = *service
 		n.servicePeerMapping[service.Id] = n.selfID
-		n.logger.Sugar().Infof("[Local Service] new/update service: %s\n", service.Id)
-		n.logger.Sugar().Infof("[Local Service] new/update service %+v \n", service)
+		n.logger.Sugar().Infof("[Local Service] new/update service: %s", service.Id)
+		n.logger.Sugar().Infof("[Local Service] new/update service %+v", service)
 	}
 
 	n.mutex.Unlock()
@@ -182,22 +181,20 @@ func (n *Node) RegisterLocalService(service *models.ApronService) {
 }
 
 func (n *Node) RegisterRemoteService(peerId peer.ID, service *models.ApronService) {
-	n.logger.Sugar().Infof("\n")
-	n.logger.Sugar().Infof("[Remote Service] from remote(%s) -to-> local(%s)\n", peerId.String(), n.selfID.String())
+	n.logger.Sugar().Infof("[Remote Service] from remote(%s) -to-> local(%s)", peerId.String(), n.selfID.String())
 	n.mutex.Lock()
 
 	if service.IsDeleted {
-		n.logger.Sugar().Infof("[Remote Service] deleted service %s\n", service.Id)
+		n.logger.Sugar().Infof("[Remote Service] deleted service %s", service.Id)
 		delete(n.services, service.Id)
 		delete(n.servicePeerMapping, service.Id)
 	} else {
 		n.services[service.Id] = *service
 		n.servicePeerMapping[service.Id] = peerId
-		n.logger.Sugar().Infof("[Remote Service] new/update service %+v \n", service)
+		n.logger.Sugar().Infof("[Remote Service] new/update service %+v", service)
 	}
 
 	n.mutex.Unlock()
-	n.logger.Sugar().Infof("\n")
 }
 
 func (n *Node) NodeAddrStr() string {
@@ -236,8 +233,8 @@ func (n *Node) UpdatePeers() {
 
 		// remove related services
 		for _, service := range invaildService {
-			n.logger.Sugar().Infof("[Remote Service] peer %s disconnected\n", n.servicePeerMapping[service])
-			n.logger.Sugar().Infof("[Remote Service] remove service %s\n", n.services[service].Id)
+			n.logger.Sugar().Infof("[Remote Service] peer %s disconnected", n.servicePeerMapping[service])
+			n.logger.Sugar().Infof("[Remote Service] remove service %s", n.services[service].Id)
 			delete(n.services, service)
 			delete(n.servicePeerMapping, service)
 		}

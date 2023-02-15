@@ -129,7 +129,7 @@ func registerSocketService(ssgwAddr, listenAddr, serviceId string) {
 	internal.CheckError(err)
 
 	respBytes := resp.Body()
-	logger.Infof("Resp: %q\n", respBytes)
+	logger.Infof("Resp: %q", respBytes)
 }
 
 func echoRequestData(conn net.Conn) {

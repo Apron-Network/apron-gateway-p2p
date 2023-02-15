@@ -42,9 +42,9 @@ func (n *Node) serveWebsocketRequest(ctx *fasthttp.RequestCtx, peerId peer.ID, r
 				_, msgBytes, err := clientWsConn.ReadMessage()
 				internal.CheckError(err)
 
-				n.logger.Sugar().Infof("ClientSideGateway: dataStream conn: %+v\n", dataStream.Conn())
+				n.logger.Sugar().Infof("ClientSideGateway: dataStream conn: %+v", dataStream.Conn())
 
-				n.logger.Sugar().Infof("ClientSideGateway: Received message from client: %q\n", msgBytes)
+				n.logger.Sugar().Infof("ClientSideGateway: Received message from client: %q", msgBytes)
 
 				forwardData := &models.ApronServiceData{
 					RequestId: req.RequestId,
@@ -79,7 +79,7 @@ func (n *Node) serveHttpRequest(ctx *fasthttp.RequestCtx, streamToServiceGW netw
 // The function first parses request sent from client to RequestDetail struct, then build ApronServiceRequest based
 // on the request data.
 func (n *Node) StartForwardService() {
-	n.logger.Sugar().Infof("Forward API Server: %s\n", n.Config.ForwardServiceAddr)
+	n.logger.Sugar().Infof("Forward API Server: %s", n.Config.ForwardServiceAddr)
 	fasthttp.ListenAndServe(n.Config.ForwardServiceAddr, func(ctx *fasthttp.RequestCtx) {
 		// Parse request URL and split service
 		var rawReq bytes.Buffer
@@ -93,13 +93,15 @@ func (n *Node) StartForwardService() {
 		if err != nil {
 			ctx.Error(fmt.Sprintf("ClientSideGateway: extract service name error: %+v", err), fasthttp.StatusInternalServerError)
 		}
+		n.logger.Sugar().Warnf("TTT: client request detail: %+v", clientReqDetail)
 		serviceNameStr := string(clientReqDetail.ServiceName)
 
-		n.logger.Sugar().Infof("ClientSideGateway: Service name: %s\n", serviceNameStr)
-		n.logger.Sugar().Infof("ClientSideGateway: Current services mapping: %+v\n", n.servicePeerMapping)
+		n.logger.Sugar().Infof("ClientSideGateway: Service name: %s", serviceNameStr)
+		n.logger.Sugar().Infof("ClientSideGateway: Current services mapping: %+v", n.servicePeerMapping)
 
 		n.mutex.Lock()
 		servicePeerId, found := n.servicePeerMapping[serviceNameStr]
+		n.logger.Sugar().Warnf("TTT: peer mapping: %+v, service name str: %s", n.servicePeerMapping, serviceNameStr)
 		if !found {
 			n.mutex.Unlock()
 			ctx.Error("ClientSideGateway: Service not found", fasthttp.StatusNotFound)
@@ -135,11 +137,11 @@ func (n *Node) StartForwardService() {
 		msgCh := make(chan []byte)
 		n.requestIdChanMapping[requestId] = msgCh
 
-		n.logger.Sugar().Infof("ClientSideGateway: Service URL requested from : %s\n", ctx.Request.URI())
-		n.logger.Sugar().Infof("ClientSideGateway: servicePeerId : %s\n", servicePeerId.String())
+		n.logger.Sugar().Infof("ClientSideGateway: Service URL requested from : %s", ctx.Request.URI())
+		n.logger.Sugar().Infof("ClientSideGateway: servicePeerId : %s", servicePeerId.String())
 		s, err := (*n.Host).NewStream(context.Background(), servicePeerId, protocol.ID(ProxyHttpInitReq))
 		if err != nil {
-			n.logger.Sugar().Infof("forward service request err: %+v\n", err)
+			n.logger.Sugar().Infof("forward service request err: %+v", err)
 			ctx.Error(err.Error(), fasthttp.StatusInternalServerError)
 			return
 		}

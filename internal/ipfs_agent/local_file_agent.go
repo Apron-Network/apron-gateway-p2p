@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+
+	"apron.network/gateway-p2p/internal/logger"
 )
 
 // LocalFileAgent uses local file to test IPFS related functions
@@ -55,7 +57,6 @@ func (agent *LocalFileAgent) PinContent(data []byte) (string, error) {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Bytes Written: %d\n", bytesWritten)
-
+	logger.GetLogger().Sugar().Infof("Bytes Written: %d", bytesWritten)
 	return targetFile.Name(), nil
 }
