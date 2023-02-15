@@ -156,7 +156,7 @@ func (n *Node) ProxyHttpRespHandler(s network.Stream) {
 			internal.CheckError(err)
 
 			n.logger.Sugar().Infof("ProxyHttpRespHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
-			n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, false)
+			//n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, false)
 
 			n.clientHttpDataChan[proxyData.RequestId] <- proxyData.RawData
 		case errMsg := <-errCh:
