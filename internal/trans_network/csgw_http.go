@@ -14,6 +14,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/valyala/fasthttp"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -36,10 +37,29 @@ func (n *Node) serveWebsocketRequest(ctx *fasthttp.RequestCtx, peerId peer.ID, r
 		n.clientWsConns[req.RequestId] = clientWsConn
 
 		// Forward client data to stream, the data will be packet to ApronServiceData struct
-		// TODO: Handle error
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					n.logger.Warn(
+						"WebSocket connection closed:",
+						zap.Any("conn", r),
+						zap.String(EntityFieldName, EntityCSGW),
+					)
+				}
+				clientWsConn.Close()
+			}()
+
 			for {
 				_, msgBytes, err := clientWsConn.ReadMessage()
+				if err != nil {
+					n.logger.Warn(
+						"WebSocket connection read error:",
+						zap.Error(err),
+						zap.String(EntityFieldName, EntityCSGW),
+					)
+					return
+				}
+
 				internal.CheckError(err)
 
 				n.logger.Sugar().Infof("ClientSideGateway: dataStream conn: %+v", dataStream.Conn())
@@ -57,9 +77,7 @@ func (n *Node) serveWebsocketRequest(ctx *fasthttp.RequestCtx, peerId peer.ID, r
 				log.Println("ClientSideGateway: data written to stream, wait for next client ws msg")
 			}
 		}()
-		select {
-		// TODO: Add error handler
-		}
+		select {}
 	})
 	internal.CheckError(err)
 }
