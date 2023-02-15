@@ -15,7 +15,7 @@ import (
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/models"
 	"apron.network/gateway-p2p/internal/trans_network"
-	"github.com/gorilla/websocket"
+	"github.com/fasthttp/websocket"
 )
 
 func BuildKdhtNetwork(ctx context.Context, bsNodeCount int, clientCount int) ([]*trans_network.Node, []*trans_network.Node) {

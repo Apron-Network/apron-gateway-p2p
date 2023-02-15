@@ -6,7 +6,6 @@ require (
 	github.com/fasthttp/router v1.4.16
 	github.com/fasthttp/websocket v1.5.1
 	github.com/google/uuid v1.3.0
-	github.com/gorilla/websocket v1.5.0
 	github.com/kelindar/binary v1.0.17
 	github.com/libp2p/go-libp2p v0.25.1
 	github.com/libp2p/go-libp2p-kad-dht v0.21.0
