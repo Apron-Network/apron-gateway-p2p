@@ -61,25 +61,24 @@ func startSocketClient(csgwAddr, serviceId string) {
 }
 
 func sendAndReceiveData(conn net.Conn) {
-	buf := make([]byte, 40960)
+	requestBytes := []byte("hello")
 
 	// Read data
 	go func(c net.Conn) {
 		for {
 			reader := bufio.NewReader(conn)
-			readCnt, err := reader.Read(buf)
+			dataBuf, err := trans_network.ReadOneFrameDataFromStream(reader)
 			internal.CheckError(err)
 
-			logger.Infof("Client: Got response: %q", buf[:readCnt])
+			logger.Infof("Client: Got response: %q", dataBuf)
 		}
 	}(conn)
 
 	// Write data repeatedly
 	go func(c net.Conn) {
 		for {
-			writeCnt, err := c.Write([]byte("hello"))
-			internal.CheckError(err)
-			logger.Infof("Client: sent data, size: %d", writeCnt)
+			trans_network.WriteBytesViaStream(conn, requestBytes)
+			logger.Infof("Client: sent data, size: %d", len(requestBytes))
 			time.Sleep(time.Second)
 		}
 	}(conn)
@@ -134,14 +133,12 @@ func registerSocketService(ssgwAddr, listenAddr, serviceId string) {
 
 func echoRequestData(conn net.Conn) {
 	for {
-		buf := make([]byte, 4096)
 		reader := bufio.NewReader(conn)
-
-		readCnt, err := reader.Read(buf)
+		dataBuf, err := trans_network.ReadOneFrameDataFromStream(reader)
 		internal.CheckError(err)
-		logger.Infof("Server: Read %d bytes message, detail: %q", readCnt, buf[:readCnt])
+		logger.Infof("Server: Read %d bytes message, detail: %q", len(dataBuf), dataBuf)
 
-		writeCnt, err := conn.Write(buf[:readCnt])
+		writeCnt, err := conn.Write(dataBuf)
 		internal.CheckError(err)
 		logger.Infof("Server: Write %d bytes message", writeCnt)
 	}
