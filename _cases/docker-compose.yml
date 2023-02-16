@@ -28,7 +28,7 @@ services:
       "-p2p-port", "2146",
       "-service-addr", ":8081",
       "-mgmt-addr", ":8083",
-      "-socket-service-addr", "localhost:9981",
+      "-socket-service-addr", ":9981",
       "-secret-key", "2",
       "-ipfs-key", "apron",
       "-ipfs-secret", "testdata"
@@ -76,9 +76,9 @@ services:
     container_name: apn_socket_service
     entrypoint: '/app/socket_helper'
     command: [
-      "service",
+      "server",
       "-service-id", "apn_socket_service",
-      "-listen-addr", "test_socket_service:10900",
+      "-listen-addr", "socket_service:10900",
       "-ssgw-addr", "http://alice_ssgw:8082/service/",
     ]
     depends_on:
@@ -88,14 +88,15 @@ services:
       apron_testnet:
 
   # test socks5 request
-  socks5_service:
-    image: apron/gateway_p2p
-    profiles:
-      - socks5_test
-    container_name: apn_socks5_service
-    depends_on:
-      - alice_ssgw
-      - bob_csgw
+#  socks5_service:
+#    image: apron/gateway_p2p
+#    profiles:
+#      - socks5_test
+#    container_name: apn_socks5_service
+#    depends_on:
+#      - alice_ssgw
+#      - bob_csgw
+
   sa_socks5:
     image: apron/gateway_p2p
     profiles:
@@ -104,9 +105,9 @@ services:
     entrypoint: "/app/socks_agent"
     command: [
       "sa",
-      "-agent-id", "apron_socks5_sa",
-      "-listen-addr", "localhost:10800",
-      "-service-addr", "socks5_service:7777",
+      "-agent-id", "apron_hello_socks5",  # This service name is hardcoded in code, so do not change it
+      "-listen-addr", "sa_socks5:10800",
+      "-service-addr", "replace.me.to.socks5.server.address",
       "-ssgw-addr", "http://alice_ssgw:8082/service/",
     ]
     depends_on:
@@ -126,7 +127,7 @@ services:
     command: [
       "ca",
       "-csgw-socket-addr", "bob_csgw:9981",
-      "-listen-addr", "localhost:10801",
+      "-listen-addr", "0.0.0.0:10801",
     ]
     depends_on:
       - alice_ssgw

@@ -53,7 +53,10 @@ func (n *Node) StartSocketForwardService() {
 			servicePeerId, found := n.servicePeerMapping[initRequest.ServiceId]
 			if !found {
 				n.mutex.Unlock()
-				n.logger.Error("CSGW: Service not found", zap.Any("init_request", initRequest))
+				n.logger.Error("CSGW: Service not found",
+					zap.Any("init_request", initRequest),
+					zap.Any("existing_services", n.servicePeerMapping),
+				)
 				conn.Write([]byte("ClientSideGateway: Service not found"))
 				return
 			}
