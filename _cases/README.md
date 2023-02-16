@@ -13,7 +13,7 @@ Shows http forwarding with Apron network.
 
 ```bash
 cd $TOP/_cases
-docker compose up -d
+docker compose --profile http_test up -d
 cd http_test
 ./setup.sh
 ```
@@ -36,7 +36,7 @@ Forward websocket data stream via Apron network
 
 ```bash
 cd $TOP/_cases
-docker compose up -d
+docker compose --profile ws_test up -d
 cd ws_test
 ./setup.sh
 ```
@@ -52,7 +52,23 @@ websocat ws://localhost:8081/v1/bbbbbbbbbbhellouser
 
 ## Socket test
 
-TBD
+Forward websocket data stream via Apron network
+
+### Prepare
+
+```bash
+cd $TOP/_cases
+docker compose --profile socket_test up -d
+./setup.sh
+```
+
+### Test
+
+Testing forwarding socket package requires built-in binary `socket_helper`. In client mode, the application sends hello every 2 seconds and gets echoed result.
+
+```bash
+./bin/socket_helper client -csgw-socket-addr localhost:9981 -service-id apn_socket_service
+```
 
 ## Socks5 test
 
