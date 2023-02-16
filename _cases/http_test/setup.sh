@@ -14,7 +14,7 @@ http post http://localhost:8082/service/ << EOF
             "id" : "test_httpbin",
             "name": "test_httpbin provider",
             "desc": "test_httpbin provider",
-            "base_url": "host.docker.internal:8923/anything",
+            "base_url": "httpbin_service:80/anything",
             "schema": "http"
         }
     ]

@@ -14,7 +14,7 @@ http post http://localhost:8082/service/ << EOF
             "id" : "test_wsbin",
             "name": "test_wsbin provider",
             "desc": "test_wsbin provider",
-            "base_url": "host.docker.internal:8978",
+            "base_url": "wsbin_service:8978",
             "schema": "ws"
         }
     ]
