@@ -155,11 +155,15 @@ func (n *Node) StartForwardService() {
 		msgCh := make(chan []byte)
 		n.requestIdChanMapping[requestId] = msgCh
 
-		n.logger.Sugar().Infof("ClientSideGateway: Service URL requested from : %s", ctx.Request.URI())
-		n.logger.Sugar().Infof("ClientSideGateway: servicePeerId : %s", servicePeerId.String())
+		n.logger.Debug("received client request",
+			zap.String("request_uri", ctx.Request.URI().String()),
+			zap.String("service_peer_id", servicePeerId.String()),
+			zap.String(EntityFieldName, EntityCSGW),
+		)
+
 		s, err := (*n.Host).NewStream(context.Background(), servicePeerId, protocol.ID(ProxyHttpInitReq))
 		if err != nil {
-			n.logger.Sugar().Infof("forward service request err: %+v", err)
+			n.logger.Error("forward service request err", zap.String(EntityFieldName, EntityCSGW), zap.Error(err))
 			ctx.Error(err.Error(), fasthttp.StatusInternalServerError)
 			return
 		}

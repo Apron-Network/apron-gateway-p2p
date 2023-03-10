@@ -7,3 +7,10 @@ const (
 	EntityCSGW      = "ClientSideGateway"
 	EntitySSGW      = "ServiceSideGateway"
 )
+
+const (
+	SchemaTypeName = "schema"
+	SchemaHttp     = "http"
+	SchemaWs       = "ws"
+	SchemaSocket   = "socket"
+)

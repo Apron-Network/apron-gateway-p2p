@@ -29,7 +29,10 @@ func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 		proxyReq := &models.ApronServiceRequest{}
 		err := proto.Unmarshal(proxyReqBytes, proxyReq)
 		internal.CheckError(err)
-		n.logger.Sugar().Infof("Read proxy request from stream: %s\n", proxyReq)
+		n.logger.Debug("read proxy request from stream",
+			zap.String(EntityFieldName, EntitySSGW), zap.String("TODO", "verify entity name"),
+			zap.Any("proxy_req", proxyReq),
+		)
 
 		httpReq, err := proxyReq.RecoverClientRequest()
 		internal.CheckError(err)
@@ -44,10 +47,16 @@ func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 
 		// Get service detail from local services list and fill missing fields of request
 		serviceDetail := n.services[proxyReq.ServiceId]
-		n.logger.Sugar().Infof("Service detail: %#v\n", serviceDetail)
+		n.logger.Debug("Service detail",
+			zap.String(EntityFieldName, EntitySSGW), zap.String("TODO", "verify entity name"),
+			zap.Any("service_detail", serviceDetail))
 		reqToService, err := proxyReq.BuildHttpRequestToService(&clientReqDetail, httpReq, &serviceDetail)
-		internal.CheckError(err)
-		n.logger.Sugar().Infof("Request to service: %#v\n", reqToService)
+		if err != nil {
+			n.logger.Error("build http request to service error", zap.String(EntityFieldName, EntitySSGW), zap.Error(err))
+			// TODO: Send error message back to CSGW
+			internal.CheckError(err)
+		}
+		n.logger.Debug("Request to service", zap.String(EntityFieldName, EntitySSGW), zap.Any("request", reqToService))
 		defer fasthttp.ReleaseRequest(reqToService)
 
 		if proxyReq.IsWsRequest {
@@ -58,9 +67,16 @@ func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 				HandshakeTimeout: 15 * time.Second,
 			}
 
-			n.logger.Sugar().Infof("ServiceSideGateway: client side req URL: %s", reqToService.URI().String())
+			n.logger.Debug("client side request",
+				zap.String(EntityFieldName, EntitySSGW),
+				zap.String(SchemaTypeName, SchemaWs),
+				zap.String("request_uri", reqToService.URI().String()))
 			serviceWsConn, _, err := dialer.Dial(reqToService.URI().String(), nil)
-			internal.CheckError(err)
+			if err != nil {
+				n.logger.Error("dial to service error", zap.String(EntityFieldName, EntitySSGW), zap.Error(err))
+				// TODO: Send error message back to CSGW
+				internal.CheckError(err)
+			}
 
 			n.serviceWsConns[proxyReq.RequestId] = serviceWsConn
 
@@ -69,7 +85,10 @@ func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 					_, msgBytes, err := serviceWsConn.ReadMessage()
 					internal.CheckError(err)
 
-					n.logger.Sugar().Infof("ServiceSideGateway: Received message from service: %q\n", msgBytes)
+					n.logger.Debug("Received message from service",
+						zap.String(EntityFieldName, EntitySSGW),
+						zap.String(SchemaTypeName, SchemaWs),
+						zap.ByteString("msg", msgBytes))
 
 					forwardData := &models.ApronServiceData{
 						RequestId: proxyReq.RequestId,
@@ -77,7 +96,15 @@ func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 					}
 
 					forwardDataBytes, err := proto.Marshal(forwardData)
-					internal.CheckError(err)
+					if err != nil {
+						n.logger.Error("marshal forward data error",
+							zap.String(EntityFieldName, EntitySSGW),
+							zap.String(SchemaTypeName, SchemaWs),
+							zap.Any("forward_data", forwardData),
+							zap.Error(err))
+						// TODO: Send error back to CSGW
+						internal.CheckError(err)
+					}
 					WriteBytesViaStream(respStream, forwardDataBytes)
 				}
 			}()
@@ -101,11 +128,14 @@ func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 			respBytes, err := proto.Marshal(serviceResp)
 			internal.CheckError(err)
 
-			n.logger.Sugar().Infof("ServiceSideGateway: Write response data: %+q\n", respBody)
-			n.logger.Sugar().Infof("resp stream is nil %+v\n", respStream == nil)
+			n.logger.Debug("write response data",
+				zap.String(EntityFieldName, EntitySSGW),
+				zap.String(SchemaTypeName, SchemaHttp),
+				zap.Any("service_resp_object", serviceResp))
 			WriteBytesViaStream(respStream, respBytes)
 		}
 	case errMsg := <-errCh:
+		// TODO: send error back to CSGW, and replace panic to unbreakable operation
 		n.logger.Panic("read data stream error", zap.Error(errMsg))
 	}
 }
@@ -210,7 +240,8 @@ func (n *Node) ProxySocketInitReqHandler(s network.Stream) {
 			readSize, err := serverReader.Read(buf)
 			internal.CheckError(err)
 
-			n.logger.Sugar().Infof("ServiceSideGateway: Received message from service: %q", buf[:readSize])
+			n.logger.Info("ServiceSideGateway: Received message from service", zap.Int("msg_size", readSize))
+			n.logger.Debug("ServiceSideGateway: Received message from service", zap.ByteString("msg_content", buf[:readSize]))
 
 			forwardData := &models.ApronServiceData{
 				RequestId: socketInitReq.RequestId,
@@ -238,7 +269,8 @@ func (n *Node) ProxySocketDataHandler(s network.Stream) {
 			err := proto.Unmarshal(proxyDataBytes, proxyData)
 			internal.CheckError(err)
 
-			//n.logger.Sugar().Infof("ProxySocketDataHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
+			n.logger.Info("ProxySocketDataHandler: Read proxy data from stream", zap.String("protocol", string(s.Protocol())))
+			n.logger.Info("ProxySocketDataHandler: Read proxy data from stream", zap.Any("proxy_data", proxyData))
 
 			if s.Protocol() == protocol.ID(ProxySocketDataFromClientSide) {
 				// Got data sent from CSGW. The data is ApronServiceData package,
