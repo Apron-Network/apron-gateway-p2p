@@ -52,14 +52,13 @@ websocat ws://localhost:8081/v1/bbbbbbbbbbhellouser
 
 ## Socket test
 
-Forward websocket data stream via Apron network
+Forward socket data stream via Apron network
 
 ### Prepare
 
 ```bash
 cd $TOP/_cases
 docker compose --profile socket_test up -d
-./setup.sh
 ```
 
 ### Test
