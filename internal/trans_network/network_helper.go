@@ -93,7 +93,7 @@ func ReadOneFrameDataFromStream(rd io.Reader) ([]byte, error) {
 	}
 
 	if uint64(readCnt) != msgLen {
-		logger.GetLogger().Sugar().Errorf("read size not equal, expected size %d, read size %d", msgLen, readCnt)
+		logger.GetLogger().Warn("read size not equal", zap.Uint64("expect_size", msgLen), zap.Int("read_size", readCnt))
 	}
 
 	return dataBuf, nil

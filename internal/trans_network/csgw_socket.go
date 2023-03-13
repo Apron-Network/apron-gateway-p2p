@@ -18,7 +18,9 @@ import (
 // StartSocketForwardService used to forward socket data from client to correct gateway.
 // Forwarding socket data requires sending auth message first, which contains auth message and connection detail,
 func (n *Node) StartSocketForwardService() {
-	n.logger.Sugar().Infof("Socket Forward Server: %s", n.Config.SocketForwardServiceAddr)
+	n.logger.Info("socket forward server",
+		zap.String(EntityFieldName, EntityCSGW),
+		zap.String("service_addr", n.Config.SocketForwardServiceAddr))
 	listen, err := net.Listen("tcp", n.Config.SocketForwardServiceAddr)
 	internal.CheckError(err)
 	for {
@@ -36,24 +38,26 @@ func (n *Node) StartSocketForwardService() {
 
 			// Read init request to get service detail
 			initRequest := models.ApronSocketInitRequest{}
-			n.logger.Sugar().Infof("Request size: %d", msgLen)
 			initRequestBytes := make([]byte, msgLen)
 
 			// Parse init request
 			readSize, err := r.Read(initRequestBytes)
 			internal.CheckError(err)
-			n.logger.Sugar().Infof("Read size: %d", readSize)
-
 			err = proto.Unmarshal(initRequestBytes, &initRequest)
 			internal.CheckError(err)
 
-			n.logger.Info("parsed apron socket init request", zap.Any("init_request", initRequest))
+			n.logger.Debug("got init request with service detail",
+				zap.String(EntityFieldName, EntityCSGW),
+				zap.Uint64("sent_msg_len", msgLen),
+				zap.Int("read_msg_size", readSize),
+				zap.Any("init_request", initRequest))
 
 			n.mutex.Lock()
 			servicePeerId, found := n.servicePeerMapping[initRequest.ServiceId]
 			if !found {
 				n.mutex.Unlock()
-				n.logger.Error("CSGW: Service not found",
+				n.logger.Error("Service not found",
+					zap.String(EntityFieldName, EntityCSGW),
 					zap.Any("init_request", initRequest),
 					zap.Any("existing_services", n.servicePeerMapping),
 				)
@@ -77,7 +81,9 @@ func (n *Node) StartSocketForwardService() {
 				return
 			}
 
-			n.logger.Sugar().Infof("Service detail: %#v", service)
+			n.logger.Debug("detail of service requested by client",
+				zap.String(EntityFieldName, EntityCSGW),
+				zap.Any("service_detail", service))
 
 			// Find service connection detail, build data package and send to correct gateway
 
@@ -97,7 +103,9 @@ func (n *Node) StartSocketForwardService() {
 
 			initSocketConnStream, err := (*n.Host).NewStream(context.Background(), servicePeerId, protocol.ID(ProxySocketInitReq))
 			if err != nil {
-				n.logger.Sugar().Errorf("forward service init request err: %+v\n", err)
+				n.logger.Error("forward service init request error",
+					zap.String(EntityFieldName, EntityCSGW),
+					zap.Error(err))
 				return
 			}
 
@@ -108,7 +116,9 @@ func (n *Node) StartSocketForwardService() {
 
 			clientSocketDataStream, err := (*n.Host).NewStream(context.Background(), servicePeerId, protocol.ID(ProxySocketDataFromClientSide))
 			if err != nil {
-				n.logger.Sugar().Errorf("forward service data request err: %+v\n", err)
+				n.logger.Error("forward data request error",
+					zap.String(EntityFieldName, EntityCSGW),
+					zap.Error(err))
 				return
 			}
 
