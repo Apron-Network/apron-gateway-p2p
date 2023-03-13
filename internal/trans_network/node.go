@@ -9,7 +9,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"go.uber.org/zap"
 
-	"log"
 	"net"
 	"strings"
 	"sync"
@@ -117,7 +116,8 @@ func (n *Node) SetupServiceBroadcastListener(ctx context.Context) {
 
 	n.selfID = (*n.Host).ID()
 
-	n.logger.Sugar().Infof("[Remote Service] Broadcast Listener started")
+	n.logger.Info("Broadcast Listener started",
+		zap.String(EntityFieldName, EntityApronNode))
 
 	go n.StartListeningOnServiceBroadcast(ctx)
 }
@@ -129,11 +129,11 @@ func (n *Node) StartListeningOnServiceBroadcast(ctx context.Context) {
 	for {
 		msg, err := n.serviceBroadcastSub.Next(ctx)
 		if err != nil {
-			log.Println("wait ServiceBroadcast err", err)
+			n.logger.Error("wait service broadcast error",
+				zap.String(EntityFieldName, EntityApronNode),
+				zap.Error(err))
 			continue
 		}
-
-		// n.logger.Sugar().Infof("ReceivedFrom: %+s", msg.ReceivedFrom.Pretty())
 
 		if msg.ReceivedFrom == n.selfID {
 			continue
@@ -141,10 +141,15 @@ func (n *Node) StartListeningOnServiceBroadcast(ctx context.Context) {
 		service := new(models.ApronService)
 		err = proto.Unmarshal(msg.Data, service)
 		if err != nil {
-			log.Println("Unmarshal ApronService err", err)
+			n.logger.Error("Unmarshal ApronService err",
+				zap.String(EntityFieldName, EntityApronNode),
+				zap.Error(err))
 			continue
 		}
-		// n.logger.Sugar().Infof("Received service: %+v", service)
+		n.logger.Debug("received service broadcast package",
+			zap.String(EntityFieldName, EntityApronNode),
+			zap.Any("service", service),
+			zap.String("from", msg.ReceivedFrom.String()))
 		n.RegisterRemoteService(msg.ReceivedFrom, service)
 	}
 }
@@ -152,9 +157,17 @@ func (n *Node) StartListeningOnServiceBroadcast(ctx context.Context) {
 // BroadcastService broad local service to the network with configured topic,
 // so all nodes subscribed to the topic can update its local cache data
 func (n *Node) BroadcastService(ctx context.Context, service *models.ApronService) error {
-	n.logger.Sugar().Infof("[Local Service] broadcast service %s --to--> all peers", service.Id)
+	n.logger.Info("broadcast service",
+		zap.String(EntityFieldName, EntityApronNode),
+		zap.String("service_id", service.Id))
+	n.logger.Debug("service detail",
+		zap.String(EntityFieldName, EntityApronNode),
+		zap.Any("service", service))
 	data, err := proto.Marshal(service)
 	if err != nil {
+		n.logger.Error("marshal service data error",
+			zap.String(EntityFieldName, EntityApronNode),
+			zap.Error(err))
 		return err
 	}
 	return n.broadcastServiceTopic.Publish(ctx, data)
@@ -163,42 +176,56 @@ func (n *Node) BroadcastService(ctx context.Context, service *models.ApronServic
 func (n *Node) RegisterLocalService(service *models.ApronService) {
 	n.mutex.Lock()
 	if service.IsDeleted {
-		n.logger.Sugar().Infof("[Local Service] deleted service %s", service.Id)
+		n.logger.Info("deleted service", zap.String(EntityFieldName, EntityApronNode), zap.String("service_id", service.Id))
+		n.logger.Debug("service detail", zap.String(EntityFieldName, EntityApronNode), zap.Any("service", service))
 		delete(n.services, service.Id)
 		delete(n.servicePeerMapping, service.Id)
 	} else {
 		n.services[service.Id] = *service
 		n.servicePeerMapping[service.Id] = n.selfID
-		n.logger.Sugar().Infof("[Local Service] new/update service: %s", service.Id)
-		n.logger.Sugar().Infof("[Local Service] new/update service %+v", service)
+		n.logger.Info("new/update service", zap.String(EntityFieldName, EntityApronNode), zap.String("service_id", service.Id))
+		n.logger.Debug("new/update service", zap.String(EntityFieldName, EntityApronNode), zap.Any("service", service))
 	}
 
 	n.mutex.Unlock()
 	if err := n.BroadcastService(context.Background(), service); err != nil {
-		log.Println("RegisterLocalService err", err)
+		n.logger.Error("register local service error",
+			zap.String(EntityFieldName, EntityApronNode),
+			zap.Error(err))
 		panic(err)
 	}
 }
 
 func (n *Node) RegisterRemoteService(peerId peer.ID, service *models.ApronService) {
-	n.logger.Sugar().Infof("[Remote Service] from remote(%s) -to-> local(%s)", peerId.String(), n.selfID.String())
+	n.logger.Info("receive remote service register request",
+		zap.String(EntityFieldName, EntityApronNode),
+		zap.String("remote_peer_id", peerId.String()),
+		zap.String("self_id", n.selfID.String()))
+	n.logger.Debug("service detail", zap.String(EntityFieldName, EntityApronNode), zap.Any("service", service))
+
 	n.mutex.Lock()
 
 	if service.IsDeleted {
-		n.logger.Sugar().Infof("[Remote Service] deleted service %s", service.Id)
 		delete(n.services, service.Id)
 		delete(n.servicePeerMapping, service.Id)
+		n.logger.Info("registered remove service deleted",
+			zap.String(EntityFieldName, EntityApronNode),
+			zap.String("service_id", service.Id))
+		n.logger.Debug("service detail", zap.String(EntityFieldName, EntityApronNode), zap.Any("service", service))
 	} else {
 		n.services[service.Id] = *service
 		n.servicePeerMapping[service.Id] = peerId
-		n.logger.Sugar().Infof("[Remote Service] new/update service %+v", service)
+		n.logger.Info("new/update remove service",
+			zap.String(EntityFieldName, EntityApronNode),
+			zap.String("service_id", service.Id))
+		n.logger.Debug("service detail", zap.String(EntityFieldName, EntityApronNode), zap.Any("service", service))
 	}
 
 	n.mutex.Unlock()
 }
 
 func (n *Node) NodeAddrStr() string {
-	bsIdStr := (*n.Host).ID().Pretty()
+	bsIdStr := (*n.Host).ID().String()
 	bsNodeAddr := (*n.Host).Addrs()[0]
 	return fmt.Sprintf("%s/p2p/%s", bsNodeAddr, bsIdStr)
 }
@@ -207,11 +234,11 @@ func (n *Node) NodeAddrStr() string {
 func (n *Node) UpdatePeers() {
 	peerRefreshTicker := time.NewTicker(time.Second)
 	defer peerRefreshTicker.Stop()
-	n.logger.Sugar().Infof("[Remote Service] Peers Monitor started")
+	n.logger.Info("peers monitor started", zap.String(EntityFieldName, EntityApronNode))
 	for {
 		<-peerRefreshTicker.C
 		availablePeers := n.ps.ListPeers(BroadcastServiceChannel)
-		// n.logger.Sugar().Infof("availablePeers %++v", availablePeers)
+		n.logger.Debug("availablePeers", zap.String(EntityFieldName, EntityApronNode), zap.Any("available_peers", availablePeers))
 		invaildService := make([]string, 0)
 		n.mutex.Lock()
 		for k, v := range n.servicePeerMapping {
@@ -233,10 +260,12 @@ func (n *Node) UpdatePeers() {
 
 		// remove related services
 		for _, service := range invaildService {
-			n.logger.Sugar().Infof("[Remote Service] peer %s disconnected", n.servicePeerMapping[service])
-			n.logger.Sugar().Infof("[Remote Service] remove service %s", n.services[service].Id)
 			delete(n.services, service)
 			delete(n.servicePeerMapping, service)
+			n.logger.Info("invalid service removed", zap.String(EntityFieldName, EntityApronNode),
+				zap.Any("service_id", n.services[service].Id),
+				zap.Any("peer_id", n.servicePeerMapping[service]))
+			n.logger.Debug("service detail", zap.String(EntityFieldName, EntityApronNode), zap.Any("service", service))
 		}
 		n.mutex.Unlock()
 

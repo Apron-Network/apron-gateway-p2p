@@ -6,6 +6,7 @@ const (
 	EntitySA        = "ServiceAgent"
 	EntityCSGW      = "ClientSideGateway"
 	EntitySSGW      = "ServiceSideGateway"
+	EntityApronNode = "ApronNode" // Used for apron network internal transaction
 )
 
 const (
