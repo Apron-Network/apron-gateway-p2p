@@ -4,8 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"github.com/libp2p/go-libp2p-core/crypto"
+
+	"apron.network/gateway-p2p/internal/logger"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"go.uber.org/zap"
+
 	"log"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -14,9 +19,9 @@ import (
 	"apron.network/gateway-p2p/internal/models"
 	"github.com/fasthttp/websocket"
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"google.golang.org/protobuf/proto"
 )
@@ -47,9 +52,13 @@ type Node struct {
 
 	clientWsConns      map[string]*websocket.Conn
 	serviceWsConns     map[string]*websocket.Conn
+	clientSocketConns  map[string]net.Conn
+	serviceSocketConns map[string]net.Conn
 	clientHttpDataChan map[string]chan []byte
 
 	serviceUsageRecordManager models.UsageRecordManager
+
+	logger *zap.Logger
 }
 
 func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
@@ -64,7 +73,7 @@ func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
 		pk, _, _ = crypto.GenerateEd25519Key(strings.NewReader(fmt.Sprintf("%032b", config.SecretKey)))
 	}
 
-	h, err := libp2p.New(context.Background(), libp2p.ListenAddrs(sourceMultiAddr), libp2p.Identity(pk))
+	h, err := libp2p.New(libp2p.ListenAddrs(sourceMultiAddr), libp2p.Identity(pk))
 	if err != nil {
 		return nil, err
 	}
@@ -82,8 +91,11 @@ func NewNode(ctx context.Context, config *NodeConfig) (*Node, error) {
 		requestIdChanMapping:      map[string]chan []byte{},
 		clientWsConns:             map[string]*websocket.Conn{},
 		serviceWsConns:            map[string]*websocket.Conn{},
+		clientSocketConns:         map[string]net.Conn{},
+		serviceSocketConns:        map[string]net.Conn{},
 		clientHttpDataChan:        map[string]chan []byte{},
 		serviceUsageRecordManager: usageRecordManager,
+		logger:                    logger.GetLogger(),
 	}, nil
 }
 
@@ -105,7 +117,7 @@ func (n *Node) SetupServiceBroadcastListener(ctx context.Context) {
 
 	n.selfID = (*n.Host).ID()
 
-	log.Printf("[Remote Service] Broadcast Listener started")
+	n.logger.Sugar().Infof("[Remote Service] Broadcast Listener started")
 
 	go n.StartListeningOnServiceBroadcast(ctx)
 }
@@ -121,7 +133,7 @@ func (n *Node) StartListeningOnServiceBroadcast(ctx context.Context) {
 			continue
 		}
 
-		// log.Printf("ReceivedFrom: %+s\n", msg.ReceivedFrom.Pretty())
+		// n.logger.Sugar().Infof("ReceivedFrom: %+s", msg.ReceivedFrom.Pretty())
 
 		if msg.ReceivedFrom == n.selfID {
 			continue
@@ -132,7 +144,7 @@ func (n *Node) StartListeningOnServiceBroadcast(ctx context.Context) {
 			log.Println("Unmarshal ApronService err", err)
 			continue
 		}
-		// log.Printf("Received service: %+v\n", service)
+		// n.logger.Sugar().Infof("Received service: %+v", service)
 		n.RegisterRemoteService(msg.ReceivedFrom, service)
 	}
 }
@@ -140,7 +152,7 @@ func (n *Node) StartListeningOnServiceBroadcast(ctx context.Context) {
 // BroadcastService broad local service to the network with configured topic,
 // so all nodes subscribed to the topic can update its local cache data
 func (n *Node) BroadcastService(ctx context.Context, service *models.ApronService) error {
-	log.Printf("[Local Service] broadcast service %s --to--> all peers\n", service.Id)
+	n.logger.Sugar().Infof("[Local Service] broadcast service %s --to--> all peers", service.Id)
 	data, err := proto.Marshal(service)
 	if err != nil {
 		return err
@@ -149,17 +161,16 @@ func (n *Node) BroadcastService(ctx context.Context, service *models.ApronServic
 }
 
 func (n *Node) RegisterLocalService(service *models.ApronService) {
-	log.Printf("\n")
 	n.mutex.Lock()
 	if service.IsDeleted {
-		log.Printf("[Local Service] deleted service %s\n", service.Id)
+		n.logger.Sugar().Infof("[Local Service] deleted service %s", service.Id)
 		delete(n.services, service.Id)
 		delete(n.servicePeerMapping, service.Id)
 	} else {
 		n.services[service.Id] = *service
 		n.servicePeerMapping[service.Id] = n.selfID
-		log.Printf("[Local Service] new/update service: %s\n", service.Id)
-		log.Printf("[Local Service] new/update service %+v \n", service)
+		n.logger.Sugar().Infof("[Local Service] new/update service: %s", service.Id)
+		n.logger.Sugar().Infof("[Local Service] new/update service %+v", service)
 	}
 
 	n.mutex.Unlock()
@@ -170,22 +181,20 @@ func (n *Node) RegisterLocalService(service *models.ApronService) {
 }
 
 func (n *Node) RegisterRemoteService(peerId peer.ID, service *models.ApronService) {
-	log.Printf("\n")
-	log.Printf("[Remote Service] from remote(%s) -to-> local(%s)\n", peerId.String(), n.selfID.String())
+	n.logger.Sugar().Infof("[Remote Service] from remote(%s) -to-> local(%s)", peerId.String(), n.selfID.String())
 	n.mutex.Lock()
 
 	if service.IsDeleted {
-		log.Printf("[Remote Service] deleted service %s\n", service.Id)
+		n.logger.Sugar().Infof("[Remote Service] deleted service %s", service.Id)
 		delete(n.services, service.Id)
 		delete(n.servicePeerMapping, service.Id)
 	} else {
 		n.services[service.Id] = *service
 		n.servicePeerMapping[service.Id] = peerId
-		log.Printf("[Remote Service] new/update service %+v \n", service)
+		n.logger.Sugar().Infof("[Remote Service] new/update service %+v", service)
 	}
 
 	n.mutex.Unlock()
-	log.Printf("\n")
 }
 
 func (n *Node) NodeAddrStr() string {
@@ -198,11 +207,11 @@ func (n *Node) NodeAddrStr() string {
 func (n *Node) UpdatePeers() {
 	peerRefreshTicker := time.NewTicker(time.Second)
 	defer peerRefreshTicker.Stop()
-	log.Printf("[Remote Service] Peers Monitor started")
+	n.logger.Sugar().Infof("[Remote Service] Peers Monitor started")
 	for {
 		<-peerRefreshTicker.C
 		availablePeers := n.ps.ListPeers(BroadcastServiceChannel)
-		// log.Printf("availablePeers %++v", availablePeers)
+		// n.logger.Sugar().Infof("availablePeers %++v", availablePeers)
 		invaildService := make([]string, 0)
 		n.mutex.Lock()
 		for k, v := range n.servicePeerMapping {
@@ -224,8 +233,8 @@ func (n *Node) UpdatePeers() {
 
 		// remove related services
 		for _, service := range invaildService {
-			log.Printf("[Remote Service] peer %s disconnected\n", n.servicePeerMapping[service])
-			log.Printf("[Remote Service] remove service %s\n", n.services[service].Id)
+			n.logger.Sugar().Infof("[Remote Service] peer %s disconnected", n.servicePeerMapping[service])
+			n.logger.Sugar().Infof("[Remote Service] remove service %s", n.services[service].Id)
 			delete(n.services, service)
 			delete(n.servicePeerMapping, service)
 		}

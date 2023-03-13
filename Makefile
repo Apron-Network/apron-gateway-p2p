@@ -1,27 +1,29 @@
 all: gen build
 
-build: gw report_generator
+.PHONY: gen clean test
 
-SOURCES = $(wildcard internal/*/*.go internal/*.go cmd/*/*.go)
+GO_SOURCES = $(wildcard internal/*/*.go internal/*.go)
+OUTPUT_BINS = $(patsubst cmd/%, bin/%, $(wildcard cmd/*))
 
+PB_FILES = $(wildcard proto/*.proto)
+GEN_PB_GO_FILES = $(patsubst proto/%,internal/models/%,$(patsubst %.proto,%.pb.go,$(PB_FILES)))
 
-gen: proto/models.proto
-	protoc --proto_path=proto --go_out=internal/models --go_opt=paths=source_relative proto/models.proto
+gen: $(GEN_PB_GO_FILES)
+build: $(OUTPUT_BINS)
 
-gw: $(SOURCES)
-	go build ./cmd/gateway
+internal/models/%.pb.go: proto/%.proto
+	protoc --proto_path=proto --go_out=internal/models --go_opt=paths=source_relative $<
 
-report_generator: $(SOURCES)
-	go build ./cmd/report_generator
+bin/%: ./cmd/%/main.go $(GO_SOURCES)
+	go build -o $@ ./$(shell dirname $<)
 
 test:
 	go test -v -cover ./...
 
 clean:
-	-rm gateway
+	-rm -rf bin/
 
 
-.PHONY: gen clean
 
 
 

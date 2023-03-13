@@ -1,11 +1,12 @@
 package main
 
 import (
-	"apron.network/gateway-p2p/internal/ipfs_agent"
 	"context"
 	"flag"
 	"log"
 	"sync"
+
+	"apron.network/gateway-p2p/internal/ipfs_agent"
 
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/trans_network"
@@ -19,6 +20,7 @@ func main() {
 	flag.Var(&config.BootstrapPeers, "peers", "Bootstrap Peers")
 	flag.IntVar(&config.InternalPort, "p2p-port", 2145, "Internal Port Used by p2p network")
 	flag.StringVar(&config.ForwardServiceAddr, "service-addr", ":8080", "Service addr used for proxy")
+	flag.StringVar(&config.SocketForwardServiceAddr, "socket-service-addr", "localhost:9980", "Socket service addr used for proxy")
 	flag.StringVar(&config.MgmtAddr, "mgmt-addr", ":8082", "API base for management")
 	flag.StringVar(&config.Rendezvous, "rendezvous", "ApronServiceNetwork", "Rendezvous to build DHT network")
 	flag.IntVar(&config.SecretKey, "secret-key", 0, "Secret key to specified host id")
@@ -56,6 +58,8 @@ func main() {
 
 	// Setup proxy request handler
 	go node.StartForwardService()
+
+	go node.StartSocketForwardService()
 
 	// Upload log file to IPFS
 	// TODO: Replace with real IPFS agent

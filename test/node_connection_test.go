@@ -1,18 +1,19 @@
 package test
 
 import (
-	"apron.network/gateway-p2p/internal"
-	"apron.network/gateway-p2p/internal/models"
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/fasthttp/websocket"
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"testing"
 	"time"
+
+	"apron.network/gateway-p2p/internal"
+	"apron.network/gateway-p2p/internal/models"
+	"github.com/fasthttp/websocket"
+	"github.com/stretchr/testify/assert"
 )
 
 type HttpbinResponse struct {
@@ -72,7 +73,7 @@ func TestHttpRequestForward(t *testing.T) {
 	RegisterService(bsNodes[0], httpbinService, false)
 	RegisterService(clientNodes[0], httpbinService, true)
 
-	log.Printf("\nSETUP DONE\n\n")
+	log.Println("\nSETUP DONE\n\n")
 
 	// Create test client and send request to local gateway, the gateway should find service info in local cache and forward the request
 	netClient := &http.Client{
@@ -135,7 +136,7 @@ func TestWsEchoRequestForward(t *testing.T) {
 	RegisterService(bsNodes[0], wsEchoService, true)
 	RegisterService(clientNodes[0], wsEchoService, false)
 
-	log.Printf("\nSETUP DONE\n\n")
+	log.Println("\nSETUP DONE\n\n")
 
 	reqUrl := fmt.Sprintf("ws://%s/v1/testkey/", wsEchoService.Id)
 	log.Printf("Request URL: %s\n", reqUrl)
@@ -150,7 +151,7 @@ func TestWsEchoRequestForward(t *testing.T) {
 	go func() {
 		for {
 			time.Sleep(2 * time.Second)
-			log.Printf("Client: Writing abcdefg to server from client")
+			log.Println("Client: Writing abcdefg to server from client")
 			err = c.WriteMessage(websocket.TextMessage, []byte("abcdefg"))
 			internal.CheckError(err)
 			time.Sleep(3 * time.Second)

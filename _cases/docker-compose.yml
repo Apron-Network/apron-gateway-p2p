@@ -1,0 +1,145 @@
+version: '3'
+
+services:
+  alice_ssgw:
+    image: apron/gateway_p2p
+    ports:
+      - "8080:8080" # Management port
+      - "8082:8082" # HTTP forward port
+      - "9980:9980" # Socket forward port
+    command: [
+      "-secret-key", "1",
+      "-ipfs-key", "apron",
+      "ipfs-secret", "testdata"
+    ]
+    container_name: apn_alice_ssgw
+    networks:
+      apron_testnet:
+        ipv4_address: 192.168.55.10
+
+  bob_csgw:
+    image: apron/gateway_p2p
+    ports:
+      - "8081:8081"
+      - "8083:8083"
+      - "9981:9981"
+    command: [
+      "-peers", "/ip4/192.168.55.10/tcp/2145/p2p/12D3KooWBnTyEyBVeYpZJobw78rb85nNamrYQR3Tc6gJmfQ76pG4",
+      "-p2p-port", "2146",
+      "-service-addr", ":8081",
+      "-mgmt-addr", ":8083",
+      "-socket-service-addr", ":9981",
+      "-secret-key", "2",
+      "-ipfs-key", "apron",
+      "-ipfs-secret", "testdata"
+    ]
+    container_name: apn_bob_csgw
+    depends_on:
+      - alice_ssgw
+    networks:
+      apron_testnet:
+        ipv4_address: 192.168.55.11
+
+
+  # Containers defined below are service should be started manually in different test scenarios.
+
+  # test http request
+  httpbin_service:
+    image: kennethreitz/httpbin
+    profiles:
+      - http_test
+    container_name: apn_http_service
+    depends_on:
+      - alice_ssgw
+      - bob_csgw
+    networks:
+      apron_testnet:
+
+  # test websocket request
+  wsbin_service:
+    image: apron/gateway_p2p
+    profiles:
+      - ws_test
+    container_name: apn_ws_service
+    entrypoint: "/app/wsbin"
+    depends_on:
+      - alice_ssgw
+      - bob_csgw
+    networks:
+      apron_testnet:
+
+  # test socket request
+  socket_service:
+    image: apron/gateway_p2p
+    profiles:
+      - socket_test
+    container_name: apn_socket_service
+    entrypoint: '/app/socket_helper'
+    command: [
+      "server",
+      "-service-id", "apn_socket_service",
+      "-listen-addr", "socket_service:10900",
+      "-ssgw-addr", "http://alice_ssgw:8082/service/",
+    ]
+    depends_on:
+      - alice_ssgw
+      - bob_csgw
+    networks:
+      apron_testnet:
+
+  # test socks5 request
+#  socks5_service:
+#    image: apron/gateway_p2p
+#    profiles:
+#      - socks5_test
+#    container_name: apn_socks5_service
+#    depends_on:
+#      - alice_ssgw
+#      - bob_csgw
+
+  sa_socks5:
+    image: apron/gateway_p2p
+    profiles:
+      - socks5_test
+    container_name: apn_socks5_service_agent
+    entrypoint: "/app/socks_agent"
+    command: [
+      "sa",
+      "-agent-id", "apron_hello_socks5",  # This service name is hardcoded in code, so do not change it
+      "-listen-addr", "sa_socks5:10800",
+      "-service-addr", "replace.me.to.socks5.server.address",
+      "-ssgw-addr", "http://alice_ssgw:8082/service/",
+    ]
+    depends_on:
+      - alice_ssgw
+      - bob_csgw
+    networks:
+      apron_testnet:
+
+  ca_socks5:
+    image: apron/gateway_p2p
+    profiles:
+      - socks5_test
+    container_name: apn_socks5_client_agent
+    entrypoint: "/app/socks_agent"
+    ports:
+      - "10801:10801"
+    command: [
+      "ca",
+      "-csgw-socket-addr", "bob_csgw:9981",
+      "-listen-addr", "0.0.0.0:10801",
+    ]
+    depends_on:
+      - alice_ssgw
+      - bob_csgw
+    networks:
+      apron_testnet:
+
+networks:
+  apron_testnet:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.55.0/24
+          gateway: 192.168.55.1

@@ -1,0 +1,22 @@
+// ExtService is used to pass client request between gateways with Apron network
+// The message contains
+syntax = "proto3";
+
+option go_package = "apron.network/gateway/models";
+
+message ExtServiceData {
+  // service_name is used for Apron, which indicates what service the package is from
+  string service_name = 1;
+
+  // request_id used to identify connection with service in SA side
+  string request_id = 2;
+
+  // unique message, used for tracing complete flow of message
+  string msg_id = 3;
+
+  // content_type is used by service handler, to determine how to decode content field
+  uint32 content_type = 10;
+
+  // content contains serialized service data, which will parsed to service specified data structure based on services
+  bytes content = 20;
+}

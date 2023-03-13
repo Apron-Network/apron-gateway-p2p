@@ -1,12 +1,8 @@
 package test
 
 import (
-	"apron.network/gateway-p2p/internal"
-	"apron.network/gateway-p2p/internal/models"
-	"apron.network/gateway-p2p/internal/trans_network"
 	"context"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +11,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"apron.network/gateway-p2p/internal"
+	"apron.network/gateway-p2p/internal/models"
+	"apron.network/gateway-p2p/internal/trans_network"
+	"github.com/fasthttp/websocket"
 )
 
 func BuildKdhtNetwork(ctx context.Context, bsNodeCount int, clientCount int) ([]*trans_network.Node, []*trans_network.Node) {
@@ -42,7 +43,7 @@ func BuildKdhtNetwork(ctx context.Context, bsNodeCount int, clientCount int) ([]
 			panic(err)
 		}
 
-		log.Printf("Setup bs nodes")
+		log.Println("Setup bs nodes")
 		node.SetupServiceBroadcastListener(ctx)
 		node.SetProxyStreamHandlers()
 		bsNodes[i] = node
@@ -74,7 +75,7 @@ func BuildKdhtNetwork(ctx context.Context, bsNodeCount int, clientCount int) ([]
 			panic(err)
 		}
 
-		log.Printf("Setup client nodes")
+		log.Println("Setup client nodes")
 		node.SetupServiceBroadcastListener(ctx)
 		node.SetProxyStreamHandlers()
 		clientNodes[i] = node

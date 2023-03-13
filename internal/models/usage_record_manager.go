@@ -16,7 +16,7 @@ func (m *UsageRecordManager) Init() {
 	m.locks = make(map[string]*sync.RWMutex)
 }
 
-func (m *UsageRecordManager) RecordUsageFromProxyRequest(proxyReq *ApronServiceRequest, reqDetail *RequestDetail) {
+func (m *UsageRecordManager) RecordUsageFromInitHttpProxyRequest(proxyReq *ApronServiceRequest, reqDetail *RequestDetail) {
 	userKey, serviceId := ExtractServiceInfoFromRequestID(proxyReq.RequestId)
 	recordKey := GenerateUsageRecordKey(serviceId, userKey)
 	rcd, ok := m.records[recordKey]
@@ -40,7 +40,7 @@ func (m *UsageRecordManager) RecordUsageFromProxyRequest(proxyReq *ApronServiceR
 	}
 }
 
-func (m *UsageRecordManager) RecordUsageFromProxyData(proxyData *ApronServiceData, isClientToService bool) {
+func (m *UsageRecordManager) RecordUsageHttpProxyData(proxyData *ApronServiceData, isClientToService bool) {
 	userKey, serviceId := ExtractServiceInfoFromRequestID(proxyData.RequestId)
 	recordKey := GenerateUsageRecordKey(serviceId, userKey)
 
@@ -52,6 +52,32 @@ func (m *UsageRecordManager) RecordUsageFromProxyData(proxyData *ApronServiceDat
 		rcd.DoRecord(0, uint64(len(proxyData.RawData)), 0)
 	} else {
 		rcd.DoRecord(0, 0, uint64(len(proxyData.RawData)))
+	}
+}
+
+func (m *UsageRecordManager) RecordUsageFromSocket(socketInitReq *ApronSocketInitRequest) {
+	userKey, serviceId := ExtractServiceInfoFromRequestID(socketInitReq.RequestId)
+	recordKey := GenerateUsageRecordKey(serviceId, userKey)
+	rcd, ok := m.records[recordKey]
+
+	// For socket init request, the upload traffic size is 0
+	if ok {
+		m.locks[recordKey].Lock()
+		defer m.locks[recordKey].Unlock()
+		rcd.DoRecord(1, 0, 0)
+	} else {
+		m.locks[recordKey] = &sync.RWMutex{}
+		m.locks[recordKey].Lock()
+		defer m.locks[recordKey].Unlock()
+
+		m.records[recordKey] = &ApronUsageRecord{
+			UserKey:         userKey,
+			ServiceId:       serviceId,
+			StartTs:         time.Now().UnixMilli(),
+			AccessCount:     1,
+			UploadTraffic:   0,
+			DownloadTraffic: 0,
+		}
 	}
 }
 

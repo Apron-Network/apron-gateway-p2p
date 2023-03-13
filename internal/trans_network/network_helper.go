@@ -1,47 +1,100 @@
 package trans_network
 
 import (
-	"apron.network/gateway-p2p/internal"
 	"bufio"
 	"encoding/binary"
-	"github.com/libp2p/go-libp2p-core/network"
-	"log"
+	"io"
+
+	"apron.network/gateway-p2p/internal"
+	"apron.network/gateway-p2p/internal/logger"
+	"github.com/libp2p/go-libp2p/core/network"
+	"go.uber.org/zap"
 )
 
 // WriteBytesViaStream writes data byte into network stream.
 // It will write the content length (uint64) first to tell the reader how many bytes are followed.
-// TODO: Check whether there are method to avoid writing data length first
-func WriteBytesViaStream(s network.Stream, data []byte) {
+func WriteBytesViaStream(w io.Writer, data []byte) {
 	msgLen := len(data)
 	msgLenBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(msgLenBytes, uint64(msgLen))
 
-	log.Printf("WriteBytesViaStream: data len: %+v, stream: %+v, data: %+q\n", msgLen, s.Protocol(), data)
-	_, err := s.Write(msgLenBytes)
+	switch w.(type) {
+	case network.Stream:
+		logger.GetLogger().Debug(
+			"WriteBytesViaStream",
+			zap.Any("protocol", w.(network.Stream).Protocol()),
+			zap.Int("msg_len", msgLen),
+		)
+	default:
+		logger.GetLogger().Debug(
+			"WriteBytesViaStream",
+			zap.Int("msg_len", msgLen),
+		)
+	}
+	_, err := w.Write(msgLenBytes)
 	internal.CheckError(err)
 
-	writtenSize, err := s.Write(data)
-	log.Printf("WriteBytesViaStream: written %d data to stream: %+v\n", writtenSize, s.Protocol())
+	writtenSize, err := w.Write(data)
+	switch w.(type) {
+	case network.Stream:
+		logger.GetLogger().Debug(
+			"WriteBytesViaStream",
+			zap.Int("written_size", writtenSize),
+			zap.Any("protocol", w.(network.Stream).Protocol()),
+		)
+	default:
+		logger.GetLogger().Debug("WriteBytesViaStream", zap.Int("written_size", writtenSize))
+	}
 	internal.CheckError(err)
-	log.Println("WriteBytesViaStream: Data written")
 }
 
 // ReadBytesViaStream reads bytes from network stream. It will read content length first (uint64) then the content bytes.
-func ReadBytesViaStream(s network.Stream, dataCh chan []byte) {
-	// TODO: Add error chan
-	reader := bufio.NewReader(s)
-	var msgLen uint64
+func ReadBytesViaStream(rd io.Reader, dataCh chan []byte, errCh chan error) {
 	for {
-		err := binary.Read(reader, binary.BigEndian, &msgLen)
-		internal.CheckError(err)
-		log.Printf("ReadBytesViaStream: protocol: %+v, read msg len: %d\n", s.Protocol(), msgLen)
+		dataBuf, err := ReadOneFrameDataFromStream(rd)
+		if err != nil {
+			logger.GetLogger().Error("ReadOneFrameDataFromStream error", zap.Error(err))
+			errCh <- err
+		}
 
-		proxyReqBuf := make([]byte, msgLen)
-
-		_, err = reader.Read(proxyReqBuf)
-		internal.CheckError(err)
-
-		log.Printf("ReadBytesViaStream: Received msg from stream: %+v, len: %+v, data: %+q\n", s.Protocol(), msgLen, proxyReqBuf)
-		dataCh <- proxyReqBuf
+		dataCh <- dataBuf
 	}
+}
+
+// ReadOneFrameDataFromStream reads one frame data (msg length + msg bytes) from stream and return data bytes
+func ReadOneFrameDataFromStream(rd io.Reader) ([]byte, error) {
+	reader := bufio.NewReader(rd)
+	var msgLen uint64
+	err := binary.Read(reader, binary.BigEndian, &msgLen)
+	if err != nil {
+		return nil, err
+	}
+
+	switch rd.(type) {
+	case network.Stream:
+		logger.GetLogger().Debug(
+			"ReadBytesViaStream",
+			zap.Any("protocol", rd.(network.Stream).Protocol()),
+			zap.Uint64("msg_len", msgLen),
+		)
+	default:
+		logger.GetLogger().Debug(
+			"ReadBytesViaStream",
+			zap.Uint64("msg_len", msgLen),
+		)
+	}
+
+	dataBuf := make([]byte, msgLen)
+
+	readCnt, err := io.ReadFull(reader, dataBuf)
+	if err != nil {
+		logger.GetLogger().Error("read data failed", zap.Error(err))
+		return nil, err
+	}
+
+	if uint64(readCnt) != msgLen {
+		logger.GetLogger().Sugar().Errorf("read size not equal, expected size %d, read size %d", msgLen, readCnt)
+	}
+
+	return dataBuf, nil
 }

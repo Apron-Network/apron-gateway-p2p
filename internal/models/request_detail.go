@@ -4,10 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"github.com/valyala/fasthttp"
 	"log"
 	"regexp"
 	"strconv"
+
+	"github.com/valyala/fasthttp"
 )
 
 type RequestDetail struct {

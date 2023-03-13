@@ -2,6 +2,14 @@ syntax = "proto3";
 
 option go_package = "apron.network/gateway/models";
 
+enum NetworkType {
+  UNKNOWN = 0;
+  Tcp4 = 1;
+  Tcp6 = 2;
+  Udp4 = 3;
+  Udp6 = 4;
+}
+
 message ApronApiKey {
   string key = 1;
   string service_id = 2;
@@ -20,7 +28,12 @@ message ApronServiceProvider {
   string extra_detail = 6;
 
   string base_url = 20;
-  string schema = 21;
+  string schema = 21;   // schema is used for specifying url protocol
+
+  // network_type indicates network type, (tcp/udp and v4/6).
+  // For http/ws requests, currently this field will be ignored since only tcp4 is available.
+  // For other requests, this field is used for selecting appropriate tcp/udp and v4/v6 handler
+  NetworkType network_type = 22;
 }
 
 // {
@@ -59,7 +72,7 @@ message ApronService {
   // Providers for this service
   repeated ApronServiceProvider providers = 10;
 
-  bool is_deleted =11;
+  bool is_deleted = 11;
 }
 
 message ApronUser {
@@ -122,6 +135,7 @@ message ApronServiceRequest {
   bytes raw_request = 10;
 }
 
+
 message ApronServiceData {
   string request_id = 2;
   bytes raw_data = 10;
@@ -142,4 +156,22 @@ message ApronUsageRecord {
 message NodeReport {
   string node_id = 1;
   repeated ApronUsageRecord records = 10;
+}
+
+// ApronSocketInitRequest is sent from client side to ClientSideGateway, which contains service_id the client required, and user_id for billing.
+// After receiving this request, ClientSideGateway will try to connect with ServiceSideGateway from its services list.
+message ApronSocketInitRequest {
+  string service_id = 1;
+  string request_id = 2;
+  string peer_id = 3;
+  string user_id = 4;
+}
+
+// Message indicates this request is used for socket connection
+// This message is similar with ApronServiceRequest, creating new message can minimize side effect to existing logic
+// This request can only indicate ServiceSideGateway to connect to service, no additional data can be passed in this request
+message ApronSocketServiceRequest {
+  string service_id = 1;
+  string request_id = 2;
+  string peer_id = 3;
 }
