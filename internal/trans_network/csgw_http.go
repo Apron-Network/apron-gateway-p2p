@@ -62,9 +62,12 @@ func (n *Node) serveWebsocketRequest(ctx *fasthttp.RequestCtx, peerId peer.ID, r
 
 				internal.CheckError(err)
 
-				n.logger.Sugar().Infof("ClientSideGateway: dataStream conn: %+v", dataStream.Conn())
-
-				n.logger.Sugar().Infof("ClientSideGateway: Received message from client: %q", msgBytes)
+				n.logger.Debug("received message from client",
+					zap.String(EntityFieldName, EntityCSGW),
+					zap.String(SchemaTypeName, SchemaWs),
+					zap.ByteString("content", msgBytes),
+					zap.Any("conn", dataStream.Conn()),
+				)
 
 				forwardData := &models.ApronServiceData{
 					RequestId: req.RequestId,
@@ -97,7 +100,10 @@ func (n *Node) serveHttpRequest(ctx *fasthttp.RequestCtx, streamToServiceGW netw
 // The function first parses request sent from client to RequestDetail struct, then build ApronServiceRequest based
 // on the request data.
 func (n *Node) StartForwardService() {
-	n.logger.Sugar().Infof("Forward API Server: %s", n.Config.ForwardServiceAddr)
+	n.logger.Info("forward API server address",
+		zap.String(EntityFieldName, EntityCSGW),
+		zap.String("api_server", n.Config.ForwardServiceAddr))
+
 	fasthttp.ListenAndServe(n.Config.ForwardServiceAddr, func(ctx *fasthttp.RequestCtx) {
 		// Parse request URL and split service
 		var rawReq bytes.Buffer
@@ -111,17 +117,23 @@ func (n *Node) StartForwardService() {
 		if err != nil {
 			ctx.Error(fmt.Sprintf("ClientSideGateway: extract service name error: %+v", err), fasthttp.StatusInternalServerError)
 		}
-		n.logger.Sugar().Warnf("TTT: client request detail: %+v", clientReqDetail)
+
 		serviceNameStr := string(clientReqDetail.ServiceName)
 
-		n.logger.Sugar().Infof("ClientSideGateway: Service name: %s", serviceNameStr)
-		n.logger.Sugar().Infof("ClientSideGateway: Current services mapping: %+v", n.servicePeerMapping)
+		n.logger.Debug("prepare to forward service request",
+			zap.String(EntityFieldName, EntityCSGW),
+			zap.String("service_name", serviceNameStr))
 
 		n.mutex.Lock()
 		servicePeerId, found := n.servicePeerMapping[serviceNameStr]
-		n.logger.Sugar().Warnf("TTT: peer mapping: %+v, service name str: %s", n.servicePeerMapping, serviceNameStr)
 		if !found {
 			n.mutex.Unlock()
+
+			n.logger.Error("service not found in peer mapping",
+				zap.String(EntityFieldName, EntityCSGW),
+				zap.String("service_name", serviceNameStr),
+				zap.Any("service_mapping", n.servicePeerMapping))
+
 			ctx.Error("ClientSideGateway: Service not found", fasthttp.StatusNotFound)
 			return
 		}
@@ -129,6 +141,12 @@ func (n *Node) StartForwardService() {
 		service, found := n.services[serviceNameStr]
 		if !found {
 			n.mutex.Unlock()
+
+			n.logger.Error("service found in peer mapping but not in service list",
+				zap.String(EntityFieldName, EntityCSGW),
+				zap.Any("service_mapping", n.servicePeerMapping),
+				zap.Any("service_list", n.services))
+
 			// Service is in the peer mapping but not in services list, internal error
 			ctx.Error("ClientSideGateway: Service data missing, contract help", fasthttp.StatusInternalServerError)
 			return
