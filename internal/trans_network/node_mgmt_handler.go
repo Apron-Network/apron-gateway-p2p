@@ -7,14 +7,15 @@ import (
 	"apron.network/gateway-p2p/internal/models"
 	"github.com/fasthttp/router"
 	"github.com/valyala/fasthttp"
+	"go.uber.org/zap"
 )
 
 func (n *Node) StartMgmtApiServer() {
 	// Init routers
-	router := router.New()
+	r := router.New()
 
 	// Service related
-	serviceRouter := router.Group("/service")
+	serviceRouter := r.Group("/service")
 	serviceRouter.GET("/", n.listServiceHandler)
 	serviceRouter.POST("/", n.newOrUpdateServiceHandler)
 	serviceRouter.DELETE("/", n.deleteServiceHandler)
@@ -22,17 +23,23 @@ func (n *Node) StartMgmtApiServer() {
 	serviceRouter.GET("/remote", n.listRemoteServiceHandler)
 	serviceRouter.GET("/peers", n.listServicePeerHandler)
 
-	n.logger.Sugar().Infof("Management API Server: %s\n", n.Config.MgmtAddr)
-	fasthttp.ListenAndServe(n.Config.MgmtAddr, router.Handler)
+	n.logger.Info("management API server info",
+		zap.String(EntityFieldName, EntityApronNode),
+		zap.String("mgmt_addr", n.Config.MgmtAddr))
+	fasthttp.ListenAndServe(n.Config.MgmtAddr, r.Handler)
 }
 
 // list all service including local and remote.
 func (n *Node) listServiceHandler(ctx *fasthttp.RequestCtx) {
-	n.logger.Sugar().Infof("[Service] List Available Service")
+
 	rslt := make([]models.ApronService, 0, 100)
 
 	n.mutex.Lock()
-	n.logger.Sugar().Infof("[Service] List Service count: %+v\n", len(n.services))
+	n.logger.Debug("list available services",
+		zap.String(EntityFieldName, EntityApronNode),
+		zap.Int("service_count", len(n.services)),
+		zap.Any("services", n.services),
+	)
 	for _, v := range n.services {
 		rslt = append(rslt, v)
 	}
@@ -45,13 +52,16 @@ func (n *Node) listServiceHandler(ctx *fasthttp.RequestCtx) {
 
 // list all service peer including local and remote.
 func (n *Node) listServicePeerHandler(ctx *fasthttp.RequestCtx) {
-	n.logger.Sugar().Infof("[Service] List Available Service Peers")
 	rslt := map[string]string{}
 
 	n.mutex.Lock()
-	n.logger.Sugar().Infof("[Service] List Service Peers count: %+v\n", len(n.servicePeerMapping))
+	n.logger.Debug("list available service_peer mapping",
+		zap.String(EntityFieldName, EntityApronNode),
+		zap.Int("service_peer_mapping_count", len(n.servicePeerMapping)),
+		zap.Any("service_peer_mapping", n.servicePeerMapping),
+	)
 	for k, v := range n.servicePeerMapping {
-		rslt[k] = v.Pretty()
+		rslt[k] = v.String()
 	}
 	n.mutex.Unlock()
 
@@ -63,28 +73,32 @@ func (n *Node) listServicePeerHandler(ctx *fasthttp.RequestCtx) {
 // Invoke RegisterLocalService to add service to local service list
 // Publish service changes to all network via pubsub in BroadcastServiceChannel
 func (n *Node) newOrUpdateServiceHandler(ctx *fasthttp.RequestCtx) {
-	n.logger.Sugar().Infof("[Local Service] New OR Update Service")
-
 	service := models.ApronService{}
 	err := json.Unmarshal(ctx.Request.Body(), &service)
 	internal.CheckError(err)
+
+	n.logger.Debug("new / update service",
+		zap.String(EntityFieldName, EntityApronNode),
+		zap.Any("service_detail", service))
 
 	n.RegisterLocalService(&service)
 }
 
 func (n *Node) deleteServiceHandler(ctx *fasthttp.RequestCtx) {
-	n.logger.Sugar().Infof("[Service] Delete Service")
 
 	service := models.ApronService{}
 	err := json.Unmarshal(ctx.Request.Body(), &service)
 	service.IsDeleted = true
 	internal.CheckError(err)
 
+	n.logger.Debug("delete service",
+		zap.String(EntityFieldName, EntityApronNode),
+		zap.Any("service_detail", service))
+
 	n.RegisterLocalService(&service)
 }
 
 func (n *Node) listLocalServiceHandler(ctx *fasthttp.RequestCtx) {
-	n.logger.Sugar().Infof("[Local Service] List Available Service")
 	rslt := make([]models.ApronService, 0, 100)
 
 	n.mutex.Lock()
@@ -94,6 +108,9 @@ func (n *Node) listLocalServiceHandler(ctx *fasthttp.RequestCtx) {
 		}
 	}
 	n.mutex.Unlock()
+	n.logger.Debug("list available local services",
+		zap.String(EntityFieldName, EntityApronNode),
+		zap.Any("service_local", rslt))
 
 	respBody, err := json.Marshal(rslt)
 	internal.CheckError(err)
@@ -101,7 +118,6 @@ func (n *Node) listLocalServiceHandler(ctx *fasthttp.RequestCtx) {
 }
 
 func (n *Node) listRemoteServiceHandler(ctx *fasthttp.RequestCtx) {
-	n.logger.Sugar().Infof("[Remote Service] List Available Service")
 	rslt := make([]models.ApronService, 0, 100)
 
 	n.mutex.Lock()
@@ -111,6 +127,9 @@ func (n *Node) listRemoteServiceHandler(ctx *fasthttp.RequestCtx) {
 		}
 	}
 	n.mutex.Unlock()
+	n.logger.Debug("list available remote services",
+		zap.String(EntityFieldName, EntityApronNode),
+		zap.Any("service_remote", rslt))
 
 	respBody, err := json.Marshal(rslt)
 	internal.CheckError(err)
