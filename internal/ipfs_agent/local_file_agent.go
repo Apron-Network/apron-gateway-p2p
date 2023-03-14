@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"apron.network/gateway-p2p/internal/logger"
+	"go.uber.org/zap"
 )
 
 // LocalFileAgent uses local file to test IPFS related functions
@@ -52,11 +53,12 @@ func (agent *LocalFileAgent) PinContent(data []byte) (string, error) {
 	}
 	defer targetFile.Close()
 
-	bytesWritten, err := targetFile.Write(data)
+	writeCnt, err := targetFile.Write(data)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	logger.GetLogger().Sugar().Infof("Bytes Written: %d", bytesWritten)
+	logger.GetLogger().Debug("target file created", zap.Int("byte_returned", writeCnt))
+
 	return targetFile.Name(), nil
 }

@@ -116,7 +116,8 @@ func (s *ApronAgentServer) ListenAndServe(networkType string) error {
 func (s *ApronAgentServer) prepareAgent(listenAddr string) error {
 	switch s.agentConfig.Mode {
 	case ClientAgentMode:
-		s.logger.Sugar().Info("client agent has no prepare task currently")
+		s.logger.Info("client agent has no prepare task currently",
+			zap.String(trans_network.EntityFieldName, trans_network.EntityCA))
 	case ServerAgentMode:
 		newServiceRequest := models.ApronService{
 			Id:   s.agentConfig.AgentId,
@@ -128,13 +129,17 @@ func (s *ApronAgentServer) prepareAgent(listenAddr string) error {
 				Schema:  "tcp",
 			}},
 		}
-		s.logger.Info("server agent prepare task: register agent to SSGW", zap.Any("req_request", newServiceRequest))
+		s.logger.Info("server agent prepare task: register agent to SSGW",
+			zap.String(trans_network.EntityFieldName, trans_network.EntitySA),
+			zap.Any("req_request", newServiceRequest))
 		respBytes, err := internal.RegisterServiceToSSGW(s.agentConfig.RestMgmtAddr, newServiceRequest)
 		if err != nil {
 			s.logger.Panic("Register service error", zap.Error(err))
 			return err
 		} else {
-			s.logger.Sugar().Infof("Register service resp: %q", respBytes)
+			s.logger.Debug("register service return",
+				zap.String(trans_network.EntityFieldName, trans_network.EntitySA),
+				zap.ByteString("resp", respBytes))
 		}
 
 	}

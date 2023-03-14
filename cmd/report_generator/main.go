@@ -9,6 +9,7 @@ import (
 
 	"apron.network/gateway-p2p/internal/logger"
 	"apron.network/gateway-p2p/internal/models"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -36,15 +37,12 @@ func main() {
 		var report models.NodeReport
 		err = proto.Unmarshal(content, &report)
 		if err != nil {
-			logger.GetLogger().Sugar().Infof("Filename: %s, err: %s", path, err)
+			logger.GetLogger().Error("unmarshal content error", zap.String("filename", path), zap.Error(err))
 			return err
 		}
 
 		if len(report.Records) != 0 {
-			fmt.Printf("Node id: %s", report.NodeId)
-			for _, r := range report.Records {
-				logger.GetLogger().Sugar().Infof("  Record: %+v", r)
-			}
+			logger.GetLogger().Debug("report info", zap.String("node_id", report.NodeId), zap.Any("records", report.Records))
 		}
 
 		return nil
