@@ -73,7 +73,10 @@ func (n *Node) ProxyHttpInitRequestHandler(s network.Stream) {
 				zap.String("request_uri", reqToService.URI().String()))
 			serviceWsConn, _, err := dialer.Dial(reqToService.URI().String(), nil)
 			if err != nil {
-				n.logger.Error("dial to service error", zap.String(EntityFieldName, EntitySSGW), zap.Error(err))
+				n.logger.Error("dial to service error",
+					zap.String(EntityFieldName, EntitySSGW),
+					zap.String(SchemaTypeName, SchemaWs),
+					zap.Error(err))
 				// TODO: Send error message back to CSGW
 				internal.CheckError(err)
 			}
@@ -152,20 +155,28 @@ func (n *Node) ProxyWsDataHandler(s network.Stream) {
 			err := proto.Unmarshal(proxyDataBytes, proxyData)
 			internal.CheckError(err)
 
-			n.logger.Sugar().Infof("ProxyWsDataHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
-
 			if s.Protocol() == protocol.ID(ProxyWsDataFromClientSide) {
-				n.logger.Sugar().Infof("ProxyDataFromClientSideHandler: Send data to service\n")
+				n.logger.Debug("received ws data from CSGW, forward to service",
+					zap.String(EntityFieldName, EntitySSGW),
+					zap.String(SchemaTypeName, SchemaWs),
+					zap.String("protocol", string(s.Protocol())),
+					zap.Any("content", proxyData))
+
 				err = n.serviceWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
 				internal.CheckError(err)
 				//n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, true)
 			} else if s.Protocol() == protocol.ID(ProxyWsDataFromServiceSide) {
-				n.logger.Sugar().Infof("ProxyDataFromServiceHandler: Send data to client\n")
+				n.logger.Debug("received ws data from SSGW, forward to client",
+					zap.String(EntityFieldName, EntityCSGW),
+					zap.String(SchemaTypeName, SchemaWs),
+					zap.String("protocol", string(s.Protocol())),
+					zap.Any("content", proxyData))
+
 				err = n.clientWsConns[proxyData.RequestId].WriteMessage(websocket.TextMessage, proxyData.RawData)
 				internal.CheckError(err)
 				//n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, false)
 			} else {
-				panic(errors.New(fmt.Sprintf("wrong protocol: %s", s.Protocol())))
+				n.logger.Panic("unknown protocol", zap.String("protocol", string(s.Protocol())))
 			}
 		case errMsg := <-errCh:
 			n.logger.Panic("read data stream error", zap.Error(errMsg))
@@ -185,12 +196,20 @@ func (n *Node) ProxyHttpRespHandler(s network.Stream) {
 			err := proto.Unmarshal(proxyDataBytes, proxyData)
 			internal.CheckError(err)
 
-			n.logger.Sugar().Infof("ProxyHttpRespHandler: Read proxy data from stream: %+v, %s\n", s.Protocol(), proxyData)
+			n.logger.Debug("received http response data from SSGW, forward to client",
+				zap.String(EntityFieldName, EntityCSGW),
+				zap.String(SchemaTypeName, SchemaHttp),
+				zap.String("protocol", string(s.Protocol())),
+				zap.Any("content", proxyData))
+
 			//n.serviceUsageRecordManager.RecordUsageHttpProxyData(proxyData, false)
 
 			n.clientHttpDataChan[proxyData.RequestId] <- proxyData.RawData
 		case errMsg := <-errCh:
-			n.logger.Panic("read data stream error", zap.Error(errMsg))
+			n.logger.Panic("read data stream error",
+				zap.String(EntityFieldName, EntityCSGW),
+				zap.String(SchemaTypeName, SchemaWs),
+				zap.Error(errMsg))
 		}
 	}
 }
@@ -204,12 +223,15 @@ func (n *Node) ProxySocketInitReqHandler(s network.Stream) {
 	socketInitReq := &models.ApronSocketInitRequest{}
 	err = proto.Unmarshal(dataBuf, socketInitReq)
 	internal.CheckError(err)
-	n.logger.Sugar().Infof("Read init socket request from stream: %s\n", socketInitReq)
 
 	csgwPeerId, err := peer.Decode(socketInitReq.PeerId)
 	internal.CheckError(err)
 
-	n.logger.Sugar().Infof("ClientSideGateway PeerID: %+v\n", csgwPeerId)
+	n.logger.Debug("received init socket request",
+		zap.String(EntityFieldName, EntitySSGW),
+		zap.String(SchemaTypeName, SchemaSocket),
+		zap.String("csgw_peer_id", string(csgwPeerId)),
+		zap.Any("init_req", socketInitReq))
 
 	//n.serviceUsageRecordManager.RecordUsageFromSocket(socketInitReq)
 
