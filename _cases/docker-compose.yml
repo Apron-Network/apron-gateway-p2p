@@ -11,9 +11,10 @@ services:
     command: [
       "-secret-key", "1",
       "-ipfs-key", "apron",
-      "ipfs-secret", "testdata",
+      "-ipfs-secret", "testdata",
       "-log-dir", "/var/log/apron/",
       "-log-level", "debug",
+      "-logger-name", "ssgw",
     ]
     volumes:
       - ./logs/:/var/log/apron/
@@ -40,6 +41,7 @@ services:
       "-ipfs-secret", "testdata",
       "-log-dir", "/var/log/apron/",
       "-log-level", "debug",
+      "-logger-name", "csgw",
     ]
     volumes:
       - ./logs/:/var/log/apron/
