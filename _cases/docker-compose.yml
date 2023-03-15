@@ -3,7 +3,7 @@ version: '3'
 services:
   alice_ssgw:
     image: apron/gateway_p2p
-    user: "1000"
+    user: "1000:1000"
     ports:
       - "8080:8080" # Management port
       - "8082:8082" # HTTP forward port
@@ -25,7 +25,7 @@ services:
 
   bob_csgw:
     image: apron/gateway_p2p
-    user: "1000"
+    user: "1000:1000"
     ports:
       - "8081:8081"
       - "8083:8083"
@@ -58,7 +58,7 @@ services:
   # test http request
   httpbin_service:
     image: kennethreitz/httpbin
-    user: "1000"
+    user: "1000:1000"
     profiles:
       - http_test
     container_name: apn_http_service
@@ -71,7 +71,7 @@ services:
   # test websocket request
   wsbin_service:
     image: apron/gateway_p2p
-    user: "1000"
+    user: "1000:1000"
     profiles:
       - ws_test
     volumes:
@@ -87,7 +87,7 @@ services:
   # test socket request
   socket_service:
     image: apron/gateway_p2p
-    user: "1000"
+    user: "1000:1000"
     profiles:
       - socket_test
     volumes:
@@ -120,7 +120,7 @@ services:
 
   sa_socks5:
     image: apron/gateway_p2p
-    user: "1000"
+    user: "1000:1000"
     profiles:
       - socks5_test
     volumes:
@@ -144,7 +144,7 @@ services:
 
   ca_socks5:
     image: apron/gateway_p2p
-    user: "1000"
+    user: "1000:1000"
     profiles:
       - socks5_test
     volumes:
