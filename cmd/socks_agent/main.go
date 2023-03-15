@@ -8,7 +8,6 @@ import (
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/ext_protocols/socks5"
 	"apron.network/gateway-p2p/internal/logger"
-	"go.uber.org/zap"
 )
 
 func main() {
@@ -17,7 +16,6 @@ func main() {
 		os.Exit(1)
 	}
 	subCommamd := os.Args[1]
-	logger.GetLogger().Info("got sub command", zap.String("sub_command", subCommamd))
 
 	socks5Config := &socks5.Config{}
 

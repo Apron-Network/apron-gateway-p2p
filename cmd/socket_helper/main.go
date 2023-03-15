@@ -22,9 +22,6 @@ func main() {
 
 	switch subCommand {
 	case "client":
-		logger.GetLogger().Info("command options",
-			zap.String(trans_network.EntityFieldName, trans_network.EntityCA),
-			zap.String("cli_opts", subCommand))
 		clientOpts := flag.NewFlagSet("client", flag.ExitOnError)
 		csgwAddr := clientOpts.String("csgw-socket-addr", "", "Client side GW socket address")
 		serviceId := clientOpts.String("service-id", "", "Service ID to be connected")
@@ -37,11 +34,12 @@ func main() {
 			BaseDir: *logBaseDir,
 			Level:   *logLevel,
 		}, "socket_helper_client")
+
+		logger.GetLogger().Info("command options",
+			zap.String(trans_network.EntityFieldName, trans_network.EntityCA),
+			zap.String("cli_opts", subCommand))
 		go startClientSideSocketAgent(*csgwAddr, *serviceId)
 	case "server":
-		logger.GetLogger().Info("command options",
-			zap.String(trans_network.EntityFieldName, trans_network.EntitySA),
-			zap.String("cli_opts", subCommand))
 		serviceOpts := flag.NewFlagSet("service", flag.ExitOnError)
 		serviceId := serviceOpts.String("service-id", "", "id of the service")
 		listenAddr := serviceOpts.String("listen-addr", "", "Client side GW socket address")
@@ -55,6 +53,9 @@ func main() {
 			BaseDir: *logBaseDir,
 			Level:   *logLevel,
 		}, "socket_helper_server")
+		logger.GetLogger().Info("command options",
+			zap.String(trans_network.EntityFieldName, trans_network.EntitySA),
+			zap.String("cli_opts", subCommand))
 		go startServerSideSocketAgent(*listenAddr, *ssgwMgmtAddr, *serviceId)
 	}
 
