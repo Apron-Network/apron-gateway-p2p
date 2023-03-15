@@ -66,7 +66,7 @@ func InitLogger(c LogConfig, name string) {
 		zapcore.AddSync(os.Stdout),
 		logWriter,
 	), zap.NewAtomicLevelAt(l))
-	logger = zap.New(core, zap.AddCaller(), zap.AddStacktrace(zap.ErrorLevel))
+	logger = zap.New(core, zap.AddCaller(), zap.AddStacktrace(zap.ErrorLevel), zap.Fields(zap.String("logger_name", name)))
 }
 
 // GetLogger build zap logger object and return to invoker.

@@ -28,11 +28,12 @@ func main() {
 	flag.IntVar(&config.ReportInterval, "report-interval", 15, "Upload usage report interval second")
 	flag.StringVar(&config.LogConfig.BaseDir, "log-dir", "/var/log/", "Base log directory for application")
 	flag.StringVar(&config.LogConfig.Level, "log-level", "info", "Output log level")
+	loggerName := flag.String("logger-name", "gateway", "logger name")
 	apiKey := flag.String("ipfs-key", "", "Api key for IPFS agent")
 	apiSecret := flag.String("ipfs-secret", "", "Api secret for IPFS agent")
 	flag.Parse()
 
-	logger.InitLogger(config.LogConfig, "gateway")
+	logger.InitLogger(config.LogConfig, *loggerName)
 	node, err := trans_network.NewNode(ctx, config)
 	internal.CheckError(err)
 
