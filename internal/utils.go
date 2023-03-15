@@ -44,3 +44,13 @@ func RegisterServiceToSSGW(ssgwMgmtAddr string, serviceData models.ApronService)
 	respBytes := resp.Body()
 	return respBytes, nil
 }
+
+func MergeTwoStruct(oldObj, newObj any) any {
+	jsonNew, err := json.Marshal(newObj)
+	CheckError(err)
+
+	err = json.Unmarshal(jsonNew, &oldObj)
+	CheckError(err)
+
+	return oldObj
+}
