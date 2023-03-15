@@ -30,8 +30,11 @@ func main() {
 		}
 		clientOpts.StringVar(&agentConfig.RemoteSocketAddr, "csgw-socket-addr", "", "Socket address of service")
 		clientOpts.StringVar(&agentConfig.ListenAddr, "listen-addr", "", "Client side GW socket address")
+		clientOpts.StringVar(&agentConfig.LogConfig.BaseDir, "log-dir", "/var/log/", "Base log directory for application")
+		clientOpts.StringVar(&agentConfig.LogConfig.Level, "log-level", "info", "Output log level")
 		clientOpts.Parse(os.Args[2:])
 
+		logger.InitLogger(agentConfig.LogConfig, "socks_agent_ca")
 		server, err := socks5.NewApronAgentServer(socks5Config, &agentConfig)
 		internal.CheckError(err)
 
@@ -50,8 +53,11 @@ func main() {
 		serviceOpts.StringVar(&agentConfig.ListenAddr, "listen-addr", "", "Client side GW socket address")
 		serviceOpts.StringVar(&agentConfig.RestMgmtAddr, "ssgw-addr", "", "RESTful management API address for service side gateway")
 		serviceOpts.StringVar(&agentConfig.RemoteSocketAddr, "service-addr", "", "Socket address of service")
+		serviceOpts.StringVar(&agentConfig.LogConfig.BaseDir, "log-dir", "/var/log/", "Base log directory for application")
+		serviceOpts.StringVar(&agentConfig.LogConfig.Level, "log-level", "info", "Output log level")
 		serviceOpts.Parse(os.Args[2:])
 
+		logger.InitLogger(agentConfig.LogConfig, "socks_agent_sa")
 		server, err := socks5.NewApronAgentServer(socks5Config, &agentConfig)
 		internal.CheckError(err)
 

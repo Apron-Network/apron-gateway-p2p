@@ -50,6 +50,9 @@ type ApronAgentServerConfig struct {
 
 	// Agent service listen address
 	ListenAddr string
+
+	// logger configuration
+	LogConfig logger.LogConfig
 }
 
 type ApronAgentServer struct {

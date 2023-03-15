@@ -28,9 +28,15 @@ func main() {
 		clientOpts := flag.NewFlagSet("client", flag.ExitOnError)
 		csgwAddr := clientOpts.String("csgw-socket-addr", "", "Client side GW socket address")
 		serviceId := clientOpts.String("service-id", "", "Service ID to be connected")
+		logBaseDir := clientOpts.String("log-dir", "/var/log/", "Base log directory for application")
+		logLevel := clientOpts.String("log-level", "info", "Output log level")
 		err := clientOpts.Parse(os.Args[2:])
 		internal.CheckError(err)
 
+		logger.InitLogger(logger.LogConfig{
+			BaseDir: *logBaseDir,
+			Level:   *logLevel,
+		}, "socket_helper_client")
 		go startClientSideSocketAgent(*csgwAddr, *serviceId)
 	case "server":
 		logger.GetLogger().Info("command options",
@@ -40,9 +46,15 @@ func main() {
 		serviceId := serviceOpts.String("service-id", "", "id of the service")
 		listenAddr := serviceOpts.String("listen-addr", "", "Client side GW socket address")
 		ssgwMgmtAddr := serviceOpts.String("ssgw-addr", "", "RESTful management API address for service side gateway")
+		logBaseDir := serviceOpts.String("log-dir", "/var/log/", "Base log directory for application")
+		logLevel := serviceOpts.String("log-level", "info", "Output log level")
 		err := serviceOpts.Parse(os.Args[2:])
 		internal.CheckError(err)
 
+		logger.InitLogger(logger.LogConfig{
+			BaseDir: *logBaseDir,
+			Level:   *logLevel,
+		}, "socket_helper_server")
 		go startServerSideSocketAgent(*listenAddr, *ssgwMgmtAddr, *serviceId)
 	}
 

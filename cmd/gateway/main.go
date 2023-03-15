@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"apron.network/gateway-p2p/internal/ipfs_agent"
+	"apron.network/gateway-p2p/internal/logger"
 
 	"apron.network/gateway-p2p/internal"
 	"apron.network/gateway-p2p/internal/trans_network"
@@ -25,17 +26,20 @@ func main() {
 	flag.StringVar(&config.Rendezvous, "rendezvous", "ApronServiceNetwork", "Rendezvous to build DHT network")
 	flag.IntVar(&config.SecretKey, "secret-key", 0, "Secret key to specified host id")
 	flag.IntVar(&config.ReportInterval, "report-interval", 15, "Upload usage report interval second")
+	flag.StringVar(&config.LogConfig.BaseDir, "log-dir", "/var/log/", "Base log directory for application")
+	flag.StringVar(&config.LogConfig.Level, "log-level", "info", "Output log level")
 	apiKey := flag.String("ipfs-key", "", "Api key for IPFS agent")
 	apiSecret := flag.String("ipfs-secret", "", "Api secret for IPFS agent")
 	flag.Parse()
 
+	logger.InitLogger(config.LogConfig, "gateway")
 	node, err := trans_network.NewNode(ctx, config)
 	internal.CheckError(err)
 
-	log.Printf("Host ID: %s", (*node.Host).ID().Pretty())
+	log.Printf("Host ID: %s", (*node.Host).ID().String())
 	log.Printf("Connect to me on:")
 	for _, addr := range (*node.Host).Addrs() {
-		log.Printf("  %s/p2p/%s", addr, (*node.Host).ID().Pretty())
+		log.Printf("  %s/p2p/%s", addr, (*node.Host).ID().String())
 	}
 
 	// Setup listener for service broadcast

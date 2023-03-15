@@ -1,5 +1,7 @@
 package trans_network
 
+import "apron.network/gateway-p2p/internal/logger"
+
 type NodeConfig struct {
 	BootstrapPeers           AddrList
 	InternalPort             int
@@ -11,4 +13,5 @@ type NodeConfig struct {
 	PinataAPIKey             string
 	PinataSecretKey          string
 	ReportInterval           int
+	LogConfig                logger.LogConfig
 }
