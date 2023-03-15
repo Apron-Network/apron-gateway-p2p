@@ -66,7 +66,7 @@ docker compose --profile socket_test up -d
 Testing forwarding socket package requires built-in binary `socket_helper`. In client mode, the application sends hello every 2 seconds and gets echoed result.
 
 ```bash
-./bin/socket_helper client -csgw-socket-addr localhost:9981 -service-id apn_socket_service
+./bin/socket_helper client -csgw-socket-addr localhost:9981 -service-id apn_socket_service -log-dir ./_cases/logs/
 ```
 
 ## Socks5 test
