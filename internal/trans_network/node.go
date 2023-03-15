@@ -238,8 +238,7 @@ func (n *Node) UpdatePeers() {
 	for {
 		<-peerRefreshTicker.C
 		availablePeers := n.ps.ListPeers(BroadcastServiceChannel)
-		n.logger.Debug("availablePeers", zap.String(EntityFieldName, EntityApronNode), zap.Any("available_peers", availablePeers))
-		invaildService := make([]string, 0)
+		invalidServices := make([]string, 0)
 		n.mutex.Lock()
 		for k, v := range n.servicePeerMapping {
 			if v == n.selfID {
@@ -253,13 +252,13 @@ func (n *Node) UpdatePeers() {
 			}
 
 			if !found {
-				invaildService = append(invaildService, k)
+				invalidServices = append(invalidServices, k)
 			}
 
 		}
 
 		// remove related services
-		for _, service := range invaildService {
+		for _, service := range invalidServices {
 			delete(n.services, service)
 			delete(n.servicePeerMapping, service)
 			n.logger.Info("invalid service removed", zap.String(EntityFieldName, EntityApronNode),
